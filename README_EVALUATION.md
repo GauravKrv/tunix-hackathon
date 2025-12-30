@@ -1,310 +1,141 @@
 # Model Evaluation System
 
-Complete evaluation framework for testing trained models on reasoning benchmarks with comprehensive metrics, visualizations, and comparison reports.
+## ⚠️ IMPORTANT UPDATE
 
-## 🚀 Quick Start
+**The evaluation approach has been updated to focus on concrete sample outputs rather than computed quality metrics.**
 
-```bash
-# Install dependencies
-pip install -r requirements-eval.txt
+The previous `evaluate.py` script with subjective reasoning quality scores, coherence metrics, and other derived measures has been **replaced** with a sample-based evaluation approach documented in `samples.md`.
 
-# Run evaluation
-python evaluate.py \
-    --base-model "gpt2" \
-    --benchmarks gsm8k math \
-    --num-samples 10 \
-    --output-dir results
+## 📄 New Evaluation Methodology
 
-# View results
-open results/comparison_report.html
-```
+See **[samples.md](samples.md)** for the current evaluation approach, which:
 
-## 📋 Table of Contents
+- Presents concrete before-and-after outputs for identical prompts
+- Shows qualitative reasoning differences between model states
+- Retains **final answer accuracy** as the only quantitative metric
+- Avoids subjective quality ratings that cannot be directly defended
+- Focuses on observable differences in reasoning traces
 
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Documentation](#documentation)
-- [File Structure](#file-structure)
-- [Examples](#examples)
-- [Extending](#extending)
+## 🎯 What Changed
 
-## 🎯 Overview
+### Removed
+- ❌ Computed "reasoning quality scores"
+- ❌ Coherence metrics
+- ❌ Derived quality measures
+- ❌ Subjective scoring systems
+- ❌ `evaluate.py` script
+- ❌ `batch_evaluate.py` script
+- ❌ Automated benchmark evaluation with quality scores
 
-This evaluation system provides:
+### Retained
+- ✅ Final answer accuracy (correct/incorrect)
+- ✅ Concrete sample outputs
+- ✅ Direct comparison of reasoning traces
+- ✅ Observable differences in model behavior
 
-- **Multi-Benchmark Support**: GSM8K, MATH, ARC, MMLU
-- **Reasoning Analysis**: Extract and score step-by-step reasoning
-- **Model Comparison**: Compare base vs fine-tuned models
-- **Rich Reports**: JSON, HTML, and visualizations
-- **Batch Processing**: Evaluate multiple models at once
-- **Built-in Data**: Sample datasets for immediate testing
+## 📊 Current Evaluation Approach
 
-## ✨ Features
+The evaluation now consists of:
 
-### Evaluation Capabilities
-- ✅ Base and fine-tuned model evaluation
-- ✅ Multiple reasoning benchmarks
-- ✅ Reasoning trace extraction and analysis
-- ✅ Quality scoring and metrics
-- ✅ GPU/CPU support
-- ✅ Reproducible results
+1. **Concrete Samples**: Real before-and-after outputs from base and fine-tuned models
+2. **Accuracy Metrics**: Simple correct/incorrect classification of final answers
+3. **Qualitative Analysis**: Direct observation of reasoning trace differences
+4. **No Subjective Scoring**: All comparisons are based on observable output characteristics
 
-### Metrics
-- Accuracy (overall and per-benchmark)
-- Reasoning quality scores
-- Average reasoning steps
-- Step length analysis
-- Confidence metrics
-- Improvement percentages
+## 💡 How to Evaluate Your Model
 
-### Output Formats
-- Interactive HTML reports
-- JSON data files
-- Comparison tables
-- Visualization charts
-- Sample outputs with traces
-
-## 📦 Installation
+### 1. Run Inference
+Use `inference.py` to generate outputs from your models:
 
 ```bash
-# Basic installation
-pip install -r requirements-eval.txt
+# Base model
+python inference.py \
+    --model_path /path/to/base/model \
+    --question "Your test question" \
+    --output base_output.txt
 
-# With visualization support
-pip install -r requirements-eval.txt matplotlib scipy
+# Fine-tuned model
+python inference.py \
+    --model_path /path/to/finetuned/model \
+    --question "Your test question" \
+    --output finetuned_output.txt
 ```
 
-### Requirements
-- Python 3.8+
-- PyTorch 2.0+
-- Transformers 4.30+
-- CUDA (optional, for GPU acceleration)
+### 2. Compare Outputs
+Manually compare the outputs to observe:
+- Structural differences in reasoning
+- Number and organization of steps
+- Presence of verification or alternative approaches
+- Final answer accuracy
 
-## 🔧 Usage
+### 3. Document Samples
+Add representative samples to your own evaluation document, following the format in `samples.md`.
 
-### Basic Evaluation
+## 📁 Deprecated Files
 
-```bash
-python evaluate.py --base-model MODEL_PATH
-```
+The following files are no longer part of the evaluation system:
 
-### Compare Models
+- `evaluate.py` - Main evaluation script (REMOVED)
+- `batch_evaluate.py` - Batch evaluation (depends on evaluate.py, non-functional)
+- `run_evaluation.sh` - Example shell script (updated to show deprecation notice)
 
-```bash
-python evaluate.py \
-    --base-model BASE_MODEL \
-    --finetuned-model FINETUNED_MODEL \
-    --benchmarks gsm8k math arc mmlu \
-    --output-dir results
-```
+## 📚 Related Documentation
 
-### Batch Evaluation
+| Document | Status | Description |
+|----------|--------|-------------|
+| [samples.md](samples.md) | ✅ **CURRENT** | New evaluation methodology with concrete samples |
+| [inference.py](inference.py) | ✅ Active | Use for generating model outputs |
+| `eval_utils.py` | ⚠️ Deprecated | Utility functions for old evaluation system |
+| `visualize_results.py` | ⚠️ May be deprecated | Visualization for old metrics |
 
-```bash
-python batch_evaluate.py \
-    --config batch_config.json \
-    --output-dir batch_results
-```
+## 🔬 Rationale for Change
 
-### Generate Visualizations
+The previous evaluation system included computed metrics such as:
+- "Reasoning quality scores" based on keyword counting
+- "Coherence scores" based on connector presence
+- Confidence metrics derived from reasoning characteristics
 
-```bash
-python visualize_results.py \
-    --report results/comparison_report.json \
-    --output-dir plots
-```
+These metrics were:
+1. **Not directly interpretable**: No clear mapping between scores and actual reasoning quality
+2. **Not defensible**: Based on heuristics rather than validated criteria
+3. **Potentially misleading**: Could suggest quality improvements that aren't real
 
-## 📚 Documentation
+The new approach focuses on:
+1. **Observable differences**: Show actual output, let readers judge
+2. **Defensible metrics**: Accuracy is binary and verifiable
+3. **Concrete evidence**: Real examples instead of derived scores
 
-| Document | Description |
-|----------|-------------|
-| [EVALUATION_README.md](EVALUATION_README.md) | Complete documentation and API reference |
-| [QUICKSTART_EVALUATION.md](QUICKSTART_EVALUATION.md) | Quick start guide and common workflows |
-| [TEST_EXAMPLES.md](TEST_EXAMPLES.md) | Test examples and validation |
-| [EVALUATION_CHANGELOG.md](EVALUATION_CHANGELOG.md) | Implementation details and architecture |
+## 🛠️ For Advanced Users
 
-## 📁 File Structure
+If you need quantitative metrics beyond accuracy:
 
-```
-├── evaluate.py                    # Main evaluation script
-├── eval_utils.py                  # Utility functions
-├── batch_evaluate.py              # Batch evaluation
-├── visualize_results.py           # Visualization generation
-├── run_evaluation.sh              # Example shell script
-├── requirements-eval.txt          # Dependencies
-├── eval_config_example.json       # Single eval config
-├── batch_config_example.json      # Batch eval config
-└── Documentation/
-    ├── EVALUATION_README.md       # Full documentation
-    ├── QUICKSTART_EVALUATION.md   # Quick start
-    ├── TEST_EXAMPLES.md           # Test examples
-    └── EVALUATION_CHANGELOG.md    # Implementation notes
-```
+### Option 1: Manual Analysis
+Review samples in `samples.md` and count observable features:
+- Number of reasoning steps
+- Presence of specific keywords or patterns
+- Length of responses
 
-## 💡 Examples
+### Option 2: Custom Scripts
+Write your own evaluation script that:
+- Focuses on observable, countable features
+- Avoids subjective "quality" aggregations
+- Documents exactly what is being measured and why
 
-### Example 1: Quick Test
-```bash
-python evaluate.py \
-    --base-model "gpt2" \
-    --benchmarks gsm8k \
-    --num-samples 5 \
-    --output-dir quick_test
-```
-
-### Example 2: Full Evaluation
-```bash
-python evaluate.py \
-    --base-model path/to/base/model \
-    --finetuned-model path/to/finetuned/model \
-    --benchmarks gsm8k math arc mmlu \
-    --batch-size 8 \
-    --temperature 0.7 \
-    --device cuda \
-    --output-dir full_evaluation
-```
-
-### Example 3: Multiple Checkpoints
-```bash
-python batch_evaluate.py \
-    --config batch_config_example.json \
-    --output-dir checkpoint_comparison
-```
-
-## 🎨 Sample Output
-
-### Terminal Output
-```
-================================================================================
-EVALUATION SUMMARY
-================================================================================
-
-gsm8k:
-  Base Accuracy: 45.20%
-  Fine-tuned Accuracy: 67.80%
-  Improvement: +22.60% (+50.0%)
-  Quality Score Change: +0.152
-
-math:
-  Base Accuracy: 23.50%
-  Fine-tuned Accuracy: 38.90%
-  Improvement: +15.40% (+65.5%)
-  Quality Score Change: +0.203
-```
-
-### Generated Files
-```
-evaluation_results/
-├── base_gsm8k_results.json
-├── finetuned_gsm8k_results.json
-├── comparison_report.json
-└── comparison_report.html
-```
-
-## 🔬 Supported Benchmarks
-
-| Benchmark | Type | Description |
-|-----------|------|-------------|
-| **GSM8K** | Math | Grade school math word problems |
-| **MATH** | Math | Advanced mathematics (algebra, calculus, etc.) |
-| **ARC** | Science | AI2 Reasoning Challenge |
-| **MMLU** | Multi-task | Massive multitask understanding (57 subjects) |
-
-## 🛠️ Extending
-
-### Add Custom Benchmark
-
-```python
-class CustomDataset(BenchmarkDataset):
-    def load_data(self):
-        # Load your data
-        pass
-    
-    def format_prompt(self, item):
-        # Format prompt
-        pass
-    
-    def extract_answer(self, text):
-        # Extract answer
-        pass
-    
-    def check_answer(self, predicted, ground_truth):
-        # Check correctness
-        pass
-```
-
-### Custom Metrics
-
-Modify `calculate_reasoning_quality()` in `evaluate.py` to implement custom scoring.
-
-### Custom Visualizations
-
-Add plotting functions to `visualize_results.py`.
-
-## 🐛 Troubleshooting
-
-### Out of Memory
-```bash
-python evaluate.py --device cpu --batch-size 1
-```
-
-### Missing Dependencies
-```bash
-pip install -r requirements-eval.txt
-```
-
-### Slow Performance
-```bash
-python evaluate.py --device cuda --num-samples 100
-```
-
-## 📊 Performance
-
-Approximate runtime (num_samples=100):
-
-| Setup | Single Benchmark | All Benchmarks |
-|-------|------------------|----------------|
-| CPU | 5-10 min | 20-40 min |
-| GPU (CUDA) | 1-2 min | 5-10 min |
-
-## 🤝 Contributing
-
-To add features:
-1. Review existing code structure
-2. Follow established patterns
-3. Add tests and documentation
-4. Update relevant README files
-
-## 📝 License
-
-See project license file.
-
-## 🙏 Acknowledgments
-
-Built for evaluating reasoning capabilities of language models on standard benchmarks.
+### Option 3: Human Evaluation
+For true quality assessment:
+- Have domain experts rate outputs
+- Use structured rubrics
+- Report inter-rater reliability
 
 ## 📞 Support
 
-For issues or questions:
-1. Check [TEST_EXAMPLES.md](TEST_EXAMPLES.md) for common issues
-2. Review [EVALUATION_README.md](EVALUATION_README.md) for detailed docs
-3. Examine example configurations
-
-## 🚦 Status
-
-✅ **Production Ready**
-- Fully implemented
-- Tested with sample data
-- Comprehensive documentation
-- Error handling
-- Extensible architecture
+For questions about the new evaluation approach:
+1. Review [samples.md](samples.md) for examples
+2. Use `inference.py` to generate your own comparisons
+3. Focus on observable differences in outputs
 
 ---
 
-**Start evaluating your models now!**
+**The evaluation system now prioritizes transparency and defensibility over automated scoring.**
 
-```bash
-python evaluate.py --base-model YOUR_MODEL --num-samples 10
-```
+See [samples.md](samples.md) to understand the new methodology.

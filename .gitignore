@@ -42,11 +42,11 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.pytest_cache/
 nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
-.pytest_cache/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -86,11 +86,11 @@ checkpoints/
 *.h5
 *.pb
 *.safetensors
+wandb/
 
 # Logs
 logs/
 *.log
-wandb/
 .wandb/
 tensorboard_logs/
 tb_logs/
@@ -108,7 +108,10 @@ models/
 data/*.csv
 data/*.json
 data/*.pkl
+data/raw/
+data/processed/
 datasets/
+datasets/cache/
 !data/example_*.json
 
 # Temporary files
@@ -124,3 +127,10 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Tensorboard
+events.out.tfevents.*

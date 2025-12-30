@@ -1,212 +1,135 @@
-# Model Evaluation Script
+# Model Evaluation - DEPRECATED
 
-Comprehensive evaluation script for testing trained models on reasoning benchmarks.
+## ⚠️ THIS SCRIPT HAS BEEN DEPRECATED
 
-## Features
+The `evaluate.py` script and associated automated evaluation system have been **removed** and replaced with a sample-based evaluation approach.
 
-- **Multi-benchmark Support**: Evaluate on GSM8K, MATH, ARC, and MMLU benchmarks
-- **Reasoning Trace Analysis**: Extract and analyze step-by-step reasoning from model outputs
-- **Quality Metrics**: Compute accuracy, reasoning quality scores, and confidence metrics
-- **Model Comparison**: Generate detailed comparison reports between base and fine-tuned models
-- **Rich Output Formats**: JSON and HTML reports with sample outputs and visualizations
+## Why Was This Deprecated?
 
-## Installation
+The previous evaluation system computed metrics such as:
+- "Reasoning quality scores" based on keyword counting
+- "Coherence scores" based on connector word presence  
+- Confidence metrics derived from reasoning characteristics
+
+These metrics were:
+1. **Not directly interpretable**: Unclear what a score of 0.75 means for actual reasoning quality
+2. **Not defensible**: Based on heuristics without validation
+3. **Potentially misleading**: Could suggest improvements that don't reflect true capability changes
+
+## New Evaluation Approach
+
+See **[samples.md](samples.md)** for the current evaluation methodology.
+
+The new approach:
+- ✅ Presents concrete before-and-after outputs for identical prompts
+- ✅ Shows qualitative reasoning differences between model states
+- ✅ Retains **final answer accuracy** as the only quantitative metric
+- ✅ Avoids subjective quality ratings that cannot be directly defended
+- ✅ Focuses on observable differences in reasoning traces
+
+## What to Use Instead
+
+### For Generating Outputs
+Use `inference.py` to generate model outputs:
 
 ```bash
-pip install -r requirements-eval.txt
+# Base model
+python inference.py \
+    --model_path /path/to/base/model \
+    --question "Your test question"
+
+# Fine-tuned model  
+python inference.py \
+    --model_path /path/to/finetuned/model \
+    --question "Your test question"
 ```
 
-## Usage
+### For Evaluation
+1. Generate outputs from both models on identical prompts
+2. Manually compare the outputs
+3. Calculate accuracy (correct/incorrect) for quantitative metric
+4. Document qualitative differences in reasoning structure
+5. See [samples.md](samples.md) for examples
 
-### Basic Usage
+### For Documentation
+Follow the format in [samples.md](samples.md):
+- Show the prompt
+- Show both model outputs
+- Note the final answer and correctness
+- Describe observable differences
 
-Evaluate a base model only:
+## Deprecated Files
 
-```bash
-python evaluate.py --base-model /path/to/base/model
-```
+The following files are no longer functional:
+- `evaluate.py` - REMOVED
+- `batch_evaluate.py` - Non-functional (depends on evaluate.py)
+- Functions in `eval_utils.py` that compute quality/coherence scores
 
-### Compare Base and Fine-tuned Models
+## Migration Guide
 
+If you were using the old evaluation system:
+
+### Before
 ```bash
 python evaluate.py \
-    --base-model /path/to/base/model \
-    --finetuned-model /path/to/finetuned/model \
-    --benchmarks gsm8k math arc mmlu \
-    --output-dir evaluation_results
-```
-
-### Custom Evaluation Settings
-
-```bash
-python evaluate.py \
-    --base-model /path/to/base/model \
-    --finetuned-model /path/to/finetuned/model \
+    --base-model BASE_MODEL \
+    --finetuned-model FINETUNED_MODEL \
     --benchmarks gsm8k math \
-    --num-samples 100 \
-    --batch-size 8 \
-    --temperature 0.7 \
-    --device cuda \
-    --output-dir my_evaluation_results
+    --output-dir results
 ```
 
-## Command-line Arguments
+### After
+```bash
+# Generate samples from base model
+python inference.py --model_path BASE_MODEL --question "QUESTION_1" > base_q1.txt
+python inference.py --model_path BASE_MODEL --question "QUESTION_2" > base_q2.txt
+# ... for all test questions
 
-- `--base-model`: Path to the base model (required)
-- `--finetuned-model`: Path to the fine-tuned model (optional)
-- `--benchmarks`: List of benchmarks to evaluate on (default: gsm8k math arc mmlu)
-- `--output-dir`: Directory for saving results (default: evaluation_results)
-- `--batch-size`: Batch size for evaluation (default: 4)
-- `--num-samples`: Number of samples to evaluate per benchmark (default: all)
-- `--temperature`: Sampling temperature for generation (default: 0.7)
-- `--device`: Device to use (default: cuda if available, else cpu)
-- `--seed`: Random seed for reproducibility (default: 42)
+# Generate samples from fine-tuned model
+python inference.py --model_path FINETUNED_MODEL --question "QUESTION_1" > ft_q1.txt
+python inference.py --model_path FINETUNED_MODEL --question "QUESTION_2" > ft_q2.txt
+# ... for all test questions
 
-## Supported Benchmarks
-
-### GSM8K
-Grade school math word problems requiring multi-step reasoning.
-
-### MATH
-Advanced mathematics problems covering algebra, geometry, calculus, and more.
-
-### ARC (AI2 Reasoning Challenge)
-Science questions requiring reasoning and world knowledge.
-
-### MMLU (Massive Multitask Language Understanding)
-Multiple-choice questions across 57 subjects.
-
-## Output
-
-The script generates the following outputs in the specified output directory:
-
-### JSON Files
-- `base_{benchmark}_results.json`: Detailed results for base model on each benchmark
-- `finetuned_{benchmark}_results.json`: Detailed results for fine-tuned model on each benchmark
-- `comparison_report.json`: Complete comparison data in JSON format
-
-### HTML Report
-- `comparison_report.html`: Interactive HTML report with:
-  - Summary table of improvements across benchmarks
-  - Detailed results for each benchmark
-  - Sample outputs with reasoning traces
-  - Visual highlighting of correct/incorrect predictions
-
-## Metrics
-
-The script computes the following metrics:
-
-- **Accuracy**: Percentage of correct predictions
-- **Reasoning Steps**: Average number of reasoning steps per problem
-- **Reasoning Length**: Average word count per reasoning step
-- **Reasoning Quality Score**: Composite score based on:
-  - Presence of reasoning keywords (because, therefore, etc.)
-  - Step length and clarity
-  - Number of logical steps
-
-## Dataset Format
-
-The script expects benchmark datasets in the following structure:
-
-```
-data/
-└── benchmarks/
-    ├── gsm8k/
-    │   └── test.jsonl
-    ├── math/
-    │   └── test.jsonl
-    ├── arc/
-    │   └── test.jsonl
-    └── mmlu/
-        └── test.jsonl
+# Manually compare outputs and document in your own samples file
 ```
 
-If datasets are not found, the script will use built-in sample data for testing.
+## Reference Documentation
 
-### GSM8K Format
-```json
-{"question": "A store has 20 apples...", "answer": "The answer is 7."}
-```
+- [samples.md](samples.md) - **Current evaluation methodology**
+- [README_EVALUATION.md](README_EVALUATION.md) - Overview of changes
+- [QUICKSTART_EVALUATION.md](QUICKSTART_EVALUATION.md) - Updated quick start guide
 
-### MATH Format
-```json
-{"problem": "Solve for x: 2x + 5 = 13", "solution": "...", "answer": "4"}
-```
+## For Advanced Users
 
-### ARC Format
-```json
-{"question": "Which property...", "choices": ["weight", "color", ...], "answerKey": "A"}
-```
+If you need quantitative metrics beyond accuracy:
 
-### MMLU Format
-```json
-{"question": "What is...", "choices": ["Option A", "Option B", ...], "answer": "B"}
-```
+### Option 1: Count Observable Features
+Write scripts that count specific, observable features:
+- Number of reasoning steps (by counting lines/sentences)
+- Presence of specific keywords (count, don't score)
+- Length of outputs (characters/words)
+- Structural patterns (numbered lists, etc.)
 
-## Example Output
+### Option 2: Human Evaluation
+For true quality assessment:
+- Have domain experts rate outputs
+- Use structured rubrics with clear criteria
+- Report inter-rater reliability
+- Document the rating process
 
-```
-================================================================================
-EVALUATION SUMMARY
-================================================================================
+### Option 3: Established Benchmarks
+Use benchmarks with ground truth answers:
+- Report accuracy only
+- Don't derive quality scores from reasoning characteristics
+- Let accuracy speak for itself
 
-gsm8k:
-  Base Accuracy: 45.20%
-  Fine-tuned Accuracy: 67.80%
-  Improvement: +22.60% (+50.0%)
-  Quality Score Change: +0.152
+## Contact
 
-math:
-  Base Accuracy: 23.50%
-  Fine-tuned Accuracy: 38.90%
-  Improvement: +15.40% (+65.5%)
-  Quality Score Change: +0.203
+For questions about the new evaluation approach:
+1. Review [samples.md](samples.md) for concrete examples
+2. Use `inference.py` to generate your own comparisons
+3. Focus on observable, verifiable differences
 
-Detailed results saved to: evaluation_results
-View HTML report at: evaluation_results/comparison_report.html
-```
+---
 
-## Customization
-
-### Adding New Benchmarks
-
-To add a new benchmark, create a class inheriting from `BenchmarkDataset`:
-
-```python
-class MyBenchmarkDataset(BenchmarkDataset):
-    def load_data(self) -> List[Dict]:
-        # Load your dataset
-        pass
-    
-    def format_prompt(self, item: Dict) -> str:
-        # Format prompt for model
-        pass
-    
-    def extract_answer(self, text: str) -> str:
-        # Extract answer from model output
-        pass
-    
-    def check_answer(self, predicted: str, ground_truth: str) -> bool:
-        # Check if answer is correct
-        pass
-```
-
-Then register it in the `dataset_map` dictionary in `ModelEvaluator.run_evaluation()`.
-
-### Custom Reasoning Quality Metrics
-
-Modify the `calculate_reasoning_quality()` method in `ModelEvaluator` to implement custom quality metrics.
-
-## Requirements
-
-- Python 3.8+
-- PyTorch 2.0+
-- Transformers 4.30+
-- CUDA (optional, for GPU acceleration)
-
-## Notes
-
-- GPU is highly recommended for efficient evaluation
-- Evaluation time depends on model size, number of benchmarks, and samples
-- The script automatically handles model loading, device placement, and memory management
-- All outputs include timestamps and are reproducible with the seed parameter
+**The evaluation system now prioritizes transparency and defensibility over automated scoring.**

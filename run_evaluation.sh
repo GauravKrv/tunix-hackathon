@@ -1,22 +1,13 @@
 #!/bin/bash
-# Example script for running model evaluation
+# DEPRECATED: The evaluate.py script has been replaced with samples.md
+# 
+# The evaluation approach has been updated to focus on concrete before-and-after
+# samples rather than computed metrics. Please see samples.md for evaluation
+# methodology and example outputs.
+#
+# For quantitative accuracy metrics, you can run inference on test sets using
+# inference.py and manually compare results.
 
-# Set paths
-BASE_MODEL="path/to/base/model"
-FINETUNED_MODEL="path/to/finetuned/model"
-OUTPUT_DIR="evaluation_results"
-
-# Run evaluation
-python evaluate.py \
-    --base-model "$BASE_MODEL" \
-    --finetuned-model "$FINETUNED_MODEL" \
-    --benchmarks gsm8k math arc mmlu \
-    --output-dir "$OUTPUT_DIR" \
-    --batch-size 4 \
-    --num-samples 100 \
-    --temperature 0.7 \
-    --device cuda \
-    --seed 42
-
-echo "Evaluation complete! Results saved to: $OUTPUT_DIR"
-echo "View HTML report at: $OUTPUT_DIR/comparison_report.html"
+echo "NOTE: The evaluation script has been deprecated."
+echo "Please refer to samples.md for the new evaluation methodology."
+echo "This focuses on concrete output samples rather than computed quality scores."

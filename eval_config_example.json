@@ -1,4 +1,8 @@
 {
+  "_DEPRECATED": "This configuration file is for the old evaluate.py script which has been removed.",
+  "_NOTE": "See samples.md for the current evaluation methodology.",
+  "_ALTERNATIVE": "Use inference.py to generate outputs from your models instead.",
+  
   "base_model_path": "path/to/base/model",
   "finetuned_model_path": "path/to/finetuned/model",
   "benchmarks": [

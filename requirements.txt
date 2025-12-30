@@ -1,5 +1,6 @@
 # Core JAX and TPU dependencies
-jax[tpu]>=0.4.20
+jax[tpu]>=0.4.20; sys_platform == 'linux'
+jax>=0.4.20; sys_platform != 'linux'
 jaxlib>=0.4.20
 flax>=0.7.5
 optax>=0.1.7
@@ -57,7 +58,7 @@ mypy>=1.5.0
 
 # Serialization
 msgpack>=1.0.5
-# pickle5>=0.0.12  # Not needed for Python 3.8+, pickle protocol 5 is built-in
+pickle5>=0.0.12; python_version < '3.8'
 
 # Performance profiling
 py-spy>=0.3.14
@@ -90,7 +91,7 @@ typing-extensions>=4.7.0
 # ============================================================================
 # Gemma2 Training Requirements
 # ============================================================================
-# torch-xla>=2.1.0  # Not available for Python 3.13 yet, needed only for TPU training
+torch-xla>=2.1.0; sys_platform == 'linux'
 transformers>=4.36.0
 accelerate>=0.25.0
 datasets>=2.14.0
