@@ -77,19 +77,16 @@ def example_custom_dataset():
     examples = [
         ReasoningExample(
             question="What is 2 + 2?",
-            reasoning_trace="We need to add 2 and 2.\n2 + 2 = 4",
             answer="4",
             metadata={"difficulty": "easy", "topic": "arithmetic"}
         ),
         ReasoningExample(
             question="If a train travels 60 mph for 2 hours, how far does it go?",
-            reasoning_trace="Distance = Speed × Time\nDistance = 60 mph × 2 hours\nDistance = 120 miles",
             answer="120 miles",
             metadata={"difficulty": "medium", "topic": "physics"}
         ),
         ReasoningExample(
             question="Solve for x: 3x + 5 = 20",
-            reasoning_trace="3x + 5 = 20\n3x = 20 - 5\n3x = 15\nx = 15 / 3\nx = 5",
             answer="5",
             metadata={"difficulty": "medium", "topic": "algebra"}
         )
@@ -116,22 +113,18 @@ def example_validation():
     examples = [
         ReasoningExample(
             question="Valid question?",
-            reasoning_trace="Valid reasoning",
             answer="Valid answer"
         ),
         ReasoningExample(
             question="",  # Invalid: empty question
-            reasoning_trace="Some reasoning",
             answer="Some answer"
         ),
         ReasoningExample(
             question="Question",
-            reasoning_trace="   ",  # Invalid: whitespace only
-            answer="Answer"
+            answer="   "  # Invalid: whitespace only
         ),
         ReasoningExample(
             question="Good question",
-            reasoning_trace="Good reasoning",
             answer="Good answer"
         )
     ]

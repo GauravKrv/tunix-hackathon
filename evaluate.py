@@ -172,11 +172,12 @@ class GSM8KDataset(BenchmarkDataset):
     
     def format_prompt(self, item: Dict) -> str:
         """Format GSM8K item as prompt."""
-        return f"""Solve the following math problem. Show your reasoning step by step.
-
-Question: {item['question']}
-
-Let's solve this step by step:"""
+        return (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {item['question']}\n\n"
+            "Let's solve this step by step:\n"
+        )
     
     def extract_answer(self, text: str) -> str:
         """Extract numerical answer from text."""
@@ -241,11 +242,12 @@ class MATHDataset(BenchmarkDataset):
     def format_prompt(self, item: Dict) -> str:
         """Format MATH item as prompt."""
         problem = item.get('problem', item.get('question', ''))
-        return f"""Solve the following math problem. Provide detailed reasoning.
-
-Problem: {problem}
-
-Solution:"""
+        return (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {problem}\n\n"
+            "Let's solve this step by step:\n"
+        )
     
     def extract_answer(self, text: str) -> str:
         """Extract answer from text."""
@@ -308,14 +310,13 @@ class ARCDataset(BenchmarkDataset):
     def format_prompt(self, item: Dict) -> str:
         """Format ARC item as prompt."""
         choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(item['choices'])])
-        return f"""Answer the following question by selecting the correct choice. Explain your reasoning.
-
-Question: {item['question']}
-
-Choices:
-{choices_text}
-
-Reasoning:"""
+        return (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {item['question']}\n\n"
+            f"Choices:\n{choices_text}\n\n"
+            "Let's solve this step by step:\n"
+        )
     
     def extract_answer(self, text: str) -> str:
         """Extract answer choice from text."""
@@ -365,14 +366,13 @@ class MMLUDataset(BenchmarkDataset):
     def format_prompt(self, item: Dict) -> str:
         """Format MMLU item as prompt."""
         choices_text = "\n".join([f"{chr(65+i)}. {c}" for i, c in enumerate(item['choices'])])
-        return f"""Answer the following multiple choice question. Provide reasoning for your answer.
-
-Question: {item['question']}
-
-Choices:
-{choices_text}
-
-Answer and reasoning:"""
+        return (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {item['question']}\n\n"
+            f"Choices:\n{choices_text}\n\n"
+            "Let's solve this step by step:\n"
+        )
     
     def extract_answer(self, text: str) -> str:
         """Extract answer choice from text."""

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Dataset preparation pipeline for reasoning datasets (GSM8K, MATH, ARC).
-Loads and formats datasets into Tunix-compatible format with question-reasoning_trace-answer structure.
+Loads and formats datasets into Tunix-compatible format with question-answer structure.
+The model will generate its own reasoning during training; only the final answer is provided for correctness reward calculation.
 """
 
 import json
@@ -17,7 +18,6 @@ from dataclasses import dataclass, asdict
 class ReasoningExample:
     """Data structure for a reasoning example."""
     question: str
-    reasoning_trace: str
     answer: str
     metadata: Optional[Dict[str, Any]] = None
 
@@ -25,7 +25,6 @@ class ReasoningExample:
         """Convert to dictionary format."""
         result = {
             "question": self.question,
-            "reasoning_trace": self.reasoning_trace,
             "answer": self.answer
         }
         if self.metadata:
@@ -47,17 +46,11 @@ class DatasetValidator:
         if not example.question or not isinstance(example.question, str):
             return False, "Question must be a non-empty string"
         
-        if not example.reasoning_trace or not isinstance(example.reasoning_trace, str):
-            return False, "Reasoning trace must be a non-empty string"
-        
         if not example.answer or not isinstance(example.answer, str):
             return False, "Answer must be a non-empty string"
         
         if len(example.question.strip()) == 0:
             return False, "Question cannot be empty or whitespace only"
-        
-        if len(example.reasoning_trace.strip()) == 0:
-            return False, "Reasoning trace cannot be empty or whitespace only"
         
         if len(example.answer.strip()) == 0:
             return False, "Answer cannot be empty or whitespace only"
@@ -108,19 +101,16 @@ class GSM8KLoader:
                     question = data.get('question', '').strip()
                     answer_text = data.get('answer', '').strip()
                     
-                    # Split reasoning trace and final answer
+                    # Extract only the final answer
                     if '####' in answer_text:
                         parts = answer_text.split('####')
-                        reasoning_trace = parts[0].strip()
                         final_answer = parts[1].strip()
                     else:
-                        # If no separator, treat entire text as reasoning
-                        reasoning_trace = answer_text
+                        # Extract last line or number as answer
                         final_answer = answer_text.split('\n')[-1].strip()
                     
                     example = ReasoningExample(
                         question=question,
-                        reasoning_trace=reasoning_trace,
                         answer=final_answer,
                         metadata={
                             "dataset": "gsm8k",
@@ -188,7 +178,6 @@ class MATHLoader:
         """Parse a single MATH example."""
         # Support both 'problem' and 'question' keys
         question = data.get('problem', data.get('question', '')).strip()
-        reasoning_trace = data.get('solution', '').strip()
         answer = data.get('answer', '').strip()
         
         # Extract level and type if available
@@ -204,7 +193,6 @@ class MATHLoader:
         
         return ReasoningExample(
             question=question,
-            reasoning_trace=reasoning_trace,
             answer=answer,
             metadata=metadata
         )
@@ -296,12 +284,6 @@ class ARCLoader:
                 answer_text = f"{label}) {text}"
                 break
         
-        # For ARC, we create a simple reasoning trace
-        # Since ARC doesn't provide reasoning, we create a basic one
-        reasoning_trace = f"The correct answer is {answer_key}."
-        if data.get('fact1'):
-            reasoning_trace = f"{data['fact1']} Therefore, the correct answer is {answer_key}."
-        
         metadata = {
             "dataset": "arc",
             "source_line": line_num,
@@ -313,7 +295,6 @@ class ARCLoader:
         
         return ReasoningExample(
             question=question,
-            reasoning_trace=reasoning_trace,
             answer=answer_text,
             metadata=metadata
         )

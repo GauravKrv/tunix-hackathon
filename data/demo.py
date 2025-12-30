@@ -114,19 +114,16 @@ def demo_custom_examples():
     examples = [
         ReasoningExample(
             question="What is 15 × 8?",
-            reasoning_trace="To multiply 15 by 8:\n15 × 8 = (10 + 5) × 8\n= (10 × 8) + (5 × 8)\n= 80 + 40\n= 120",
             answer="120",
             metadata={"difficulty": "easy", "topic": "multiplication"}
         ),
         ReasoningExample(
             question="A rectangle has a length of 12 cm and width of 5 cm. What is its area?",
-            reasoning_trace="Area of rectangle = length × width\nArea = 12 cm × 5 cm\nArea = 60 cm²",
             answer="60 cm²",
             metadata={"difficulty": "easy", "topic": "geometry"}
         ),
         ReasoningExample(
             question="If 3x - 7 = 14, what is x?",
-            reasoning_trace="3x - 7 = 14\nAdd 7 to both sides:\n3x = 14 + 7\n3x = 21\nDivide both sides by 3:\nx = 21 ÷ 3\nx = 7",
             answer="7",
             metadata={"difficulty": "medium", "topic": "algebra"}
         )
@@ -210,7 +207,6 @@ def show_output_format():
     
     example = {
         "question": "What is the value of 2 + 2?",
-        "reasoning_trace": "We need to add 2 and 2.\n2 + 2 = 4",
         "answer": "4",
         "metadata": {
             "dataset": "gsm8k",
@@ -224,9 +220,9 @@ def show_output_format():
     
     print("\nKey components:")
     print("  • question: The problem statement")
-    print("  • reasoning_trace: Step-by-step solution/reasoning")
-    print("  • answer: The final answer")
+    print("  • answer: The final answer (used for correctness reward)")
     print("  • metadata: Additional information (optional)")
+    print("\nNote: Model generates its own reasoning during training.")
 
 
 def main():

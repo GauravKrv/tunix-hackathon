@@ -20,22 +20,46 @@ import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.core.xla_model as xm
 
 
-class CustomTextDataset(Dataset):
-    """Custom dataset example for text data."""
+class CustomReasoningDataset(Dataset):
+    """
+    Custom dataset for reasoning tasks.
+    Only uses question and answer - model generates its own reasoning.
+    """
     
-    def __init__(self, texts, tokenizer, max_length=2048):
-        self.texts = texts
+    def __init__(self, examples, tokenizer, max_length=2048):
+        """
+        Args:
+            examples: List of dicts with 'question' and 'answer' fields
+            tokenizer: Tokenizer instance
+            max_length: Maximum sequence length
+        """
+        self.examples = examples
         self.tokenizer = tokenizer
         self.max_length = max_length
     
+    def _create_prompt(self, question: str) -> str:
+        """Create prompt with explicit reasoning instruction."""
+        prompt = (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {question}\n\n"
+            "Let's solve this step by step:\n"
+        )
+        return prompt
+    
     def __len__(self):
-        return len(self.texts)
+        return len(self.examples)
     
     def __getitem__(self, idx):
-        text = self.texts[idx]
+        example = self.examples[idx]
+        question = example['question']
+        answer = example['answer']
+        
+        prompt = self._create_prompt(question)
+        full_text = prompt + answer
         
         encoded = self.tokenizer(
-            text,
+            full_text,
             max_length=self.max_length,
             padding="max_length",
             truncation=True,
@@ -50,16 +74,16 @@ class CustomTextDataset(Dataset):
 
 
 def create_sample_dataset():
-    """Create a sample dataset for demonstration."""
-    texts = [
-        "The quick brown fox jumps over the lazy dog.",
-        "Machine learning is a subset of artificial intelligence.",
-        "Python is a popular programming language for data science.",
-        "Deep learning models require large amounts of data.",
-        "Neural networks are inspired by biological neurons.",
-    ] * 200  # Repeat for more samples
+    """Create a sample reasoning dataset for demonstration."""
+    examples = [
+        {"question": "What is 12 + 8?", "answer": "20"},
+        {"question": "If a book costs $15 and you buy 3 books, how much do you spend?", "answer": "$45"},
+        {"question": "A square has a side length of 7. What is its area?", "answer": "49"},
+        {"question": "Solve for x: 2x - 3 = 11", "answer": "7"},
+        {"question": "How many days are in 3 weeks?", "answer": "21 days"},
+    ] * 40  # Repeat for more samples
     
-    return texts
+    return examples
 
 
 def example_training_custom_config():
@@ -135,7 +159,7 @@ def example_training_custom_rewards():
     return config
 
 
-def _mp_fn_custom(index: int, config: TunixConfig, texts: list):
+def _mp_fn_custom(index: int, config: TunixConfig, examples: list):
     """Multi-processing function with custom dataset."""
     import numpy as np
     
@@ -149,14 +173,14 @@ def _mp_fn_custom(index: int, config: TunixConfig, texts: list):
     
     model, tokenizer = load_model_and_tokenizer(config.model)
     
-    train_dataset = CustomTextDataset(
-        texts=texts[:int(len(texts) * 0.9)],  # 90% for training
+    train_dataset = CustomReasoningDataset(
+        examples=examples[:int(len(examples) * 0.9)],  # 90% for training
         tokenizer=tokenizer,
         max_length=config.model.max_length,
     )
     
-    eval_dataset = CustomTextDataset(
-        texts=texts[int(len(texts) * 0.9):],  # 10% for evaluation
+    eval_dataset = CustomReasoningDataset(
+        examples=examples[int(len(examples) * 0.9):],  # 10% for evaluation
         tokenizer=tokenizer,
         max_length=config.model.max_length,
     )
@@ -185,9 +209,9 @@ def run_example_1():
     print("=" * 50)
     
     config = example_training_custom_config()
-    texts = create_sample_dataset()
+    examples = create_sample_dataset()
     
-    xmp.spawn(_mp_fn_custom, args=(config, texts), nprocs=config.tpu.num_cores)
+    xmp.spawn(_mp_fn_custom, args=(config, examples), nprocs=config.tpu.num_cores)
 
 
 def run_example_2():
@@ -197,9 +221,9 @@ def run_example_2():
     print("=" * 50)
     
     config = example_training_custom_rewards()
-    texts = create_sample_dataset()
+    examples = create_sample_dataset()
     
-    xmp.spawn(_mp_fn_custom, args=(config, texts), nprocs=config.tpu.num_cores)
+    xmp.spawn(_mp_fn_custom, args=(config, examples), nprocs=config.tpu.num_cores)
 
 
 def main():
