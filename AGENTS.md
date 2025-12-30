@@ -25,10 +25,16 @@ pip install -r requirements.txt
 - `train.py`: Main training script with TunixTrainer, GRPO implementation, composite reward functions, and TPU optimizations
 - `utils.py`: Utility functions for configuration, checkpointing, and metrics
 - `example_usage.py`: Example scripts demonstrating custom configurations including GRPO
+- `rewards_example.py`: Example demonstrating pure function-based reward system
 - `run_tpu_training.sh`: Shell script for easy TPU training execution
 - `inference.py`: Inference script for fine-tuned models with step-by-step reasoning
 - `requirements.txt`: Python dependencies
 - `config_example.json`: Example configuration file
+- `rewards/`: Pure function-based reward system
+  - `correctness_reward.py`: Standalone correctness reward function
+  - `reasoning_coherence_reward.py`: Standalone structure reward function
+  - `explanation_quality_reward.py`: Standalone conciseness reward function
+  - `composite_reward.py`: Weighted summation utilities for combining rewards
 
 ## GRPO (Group Relative Policy Optimization)
 

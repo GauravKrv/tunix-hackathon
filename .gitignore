@@ -87,18 +87,19 @@ checkpoints/
 *.pb
 *.safetensors
 wandb/
+.wandb/
+tensorboard_logs/
+tb_logs/
 
 # Logs
 logs/
 *.log
-.wandb/
-tensorboard_logs/
-tb_logs/
 
 # Temporary requirements files (created during setup)
 requirements_fixed.txt
 requirements_base.txt
 requirements_minimal.txt
+requirements-minimal.txt
 
 # Model files
 models/
@@ -113,6 +114,11 @@ data/processed/
 datasets/
 datasets/cache/
 !data/example_*.json
+*.hdf5
+
+# Evaluation results
+results/
+evaluation_results/
 
 # Temporary files
 tmp/
