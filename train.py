@@ -8,7 +8,7 @@ and TPU-specific optimizations.
 import os
 import logging
 import argparse
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any, List
 from dataclasses import dataclass, field
 from pathlib import Path
 import time
@@ -205,6 +205,75 @@ class CompositeRewardFunction:
         return total_reward, rewards
 
 
+class ReasoningDataset(Dataset):
+    """
+    Dataset for reasoning tasks where the model generates its own reasoning.
+    Only provides prompt (question with explicit reasoning instruction) and final answer.
+    No gold reasoning traces are included - model must generate reasoning independently.
+    """
+    
+    def __init__(self, data_path: str, tokenizer, max_length: int = 2048):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.data = self._load_data(data_path)
+    
+    def _load_data(self, data_path: str) -> List[Dict[str, str]]:
+        """Load data from jsonl file with question and answer fields."""
+        data = []
+        with open(data_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                item = json.loads(line.strip())
+                # Only load question and answer - no reasoning_trace
+                if 'question' in item and 'answer' in item:
+                    data.append({
+                        'question': item['question'],
+                        'answer': item['answer']
+                    })
+        return data
+    
+    def _create_prompt(self, question: str) -> str:
+        """
+        Create prompt with explicit instruction to reason step-by-step.
+        This replaces any implicit reasoning structure from training data.
+        """
+        prompt = (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {question}\n\n"
+            "Let's solve this step by step:\n"
+        )
+        return prompt
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        question = item['question']
+        answer = item['answer']
+        
+        # Create prompt with explicit reasoning instruction
+        prompt = self._create_prompt(question)
+        
+        # Full text includes prompt + answer (model will generate reasoning between them)
+        full_text = prompt + answer
+        
+        encoded = self.tokenizer(
+            full_text,
+            max_length=self.max_length,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt"
+        )
+        
+        return {
+            'input_ids': encoded['input_ids'].squeeze(0),
+            'attention_mask': encoded['attention_mask'].squeeze(0),
+            'labels': encoded['input_ids'].squeeze(0),
+            'answer': answer,  # Keep for reward calculation
+        }
+
+
 class DummyDataset(Dataset):
     """Dummy dataset for demonstration purposes."""
     
@@ -213,21 +282,57 @@ class DummyDataset(Dataset):
         self.num_samples = num_samples
         self.max_length = max_length
         
-        self.prompts = [
-            "Explain the concept of machine learning in simple terms.",
-            "Write a short story about a robot learning to paint.",
-            "Describe the process of photosynthesis.",
-            "What are the benefits of renewable energy?",
-            "How does the internet work?",
+        self.examples = [
+            {
+                "question": "If a train travels 120 miles in 2 hours, what is its average speed?",
+                "answer": "60 miles per hour"
+            },
+            {
+                "question": "What is 15 multiplied by 8?",
+                "answer": "120"
+            },
+            {
+                "question": "A rectangle has length 12 and width 5. What is its area?",
+                "answer": "60"
+            },
+            {
+                "question": "Solve for x: 3x + 5 = 20",
+                "answer": "5"
+            },
+            {
+                "question": "If John has 3 times as many apples as Mary, and Mary has 8, how many does John have?",
+                "answer": "24"
+            },
         ]
+    
+    def _create_prompt(self, question: str) -> str:
+        """
+        Create prompt with explicit instruction to reason step-by-step.
+        """
+        prompt = (
+            "You must reason step by step before answering. "
+            "Do not give the final answer until reasoning is complete.\n\n"
+            f"Question: {question}\n\n"
+            "Let's solve this step by step:\n"
+        )
+        return prompt
     
     def __len__(self):
         return self.num_samples
     
     def __getitem__(self, idx):
-        prompt = self.prompts[idx % len(self.prompts)]
+        example = self.examples[idx % len(self.examples)]
+        question = example['question']
+        answer = example['answer']
+        
+        # Create prompt with explicit reasoning instruction
+        prompt = self._create_prompt(question)
+        
+        # Full text includes prompt + answer (model generates reasoning)
+        full_text = prompt + answer
+        
         encoded = self.tokenizer(
-            prompt,
+            full_text,
             max_length=self.max_length,
             padding="max_length",
             truncation=True,

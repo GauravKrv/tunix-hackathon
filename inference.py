@@ -76,37 +76,48 @@ class ReasoningInference:
         
         Args:
             question: The question to answer
-            system_message: Optional system message for instruction
+            system_message: Optional system message for instruction (ignored for default template)
             prompt_template: Template type ('default', 'alpaca', 'chatml', 'llama2')
         
         Returns:
             Formatted prompt string
         """
-        if system_message is None:
-            system_message = (
-                "You are a helpful assistant that solves problems step-by-step. "
-                "Break down your reasoning into clear steps and show your work."
-            )
-        
         if prompt_template == "alpaca":
+            if system_message is None:
+                system_message = (
+                    "You are a helpful assistant that solves problems step-by-step. "
+                    "Break down your reasoning into clear steps and show your work."
+                )
             if system_message:
                 prompt = f"{system_message}\n\n### Instruction:\n{question}\n\n### Response:\n"
             else:
                 prompt = f"### Instruction:\n{question}\n\n### Response:\n"
         
         elif prompt_template == "chatml":
+            if system_message is None:
+                system_message = (
+                    "You are a helpful assistant that solves problems step-by-step. "
+                    "Break down your reasoning into clear steps and show your work."
+                )
             prompt = f"<|im_start|>system\n{system_message}<|im_end|>\n"
             prompt += f"<|im_start|>user\n{question}<|im_end|>\n"
             prompt += "<|im_start|>assistant\n"
         
         elif prompt_template == "llama2":
+            if system_message is None:
+                system_message = (
+                    "You are a helpful assistant that solves problems step-by-step. "
+                    "Break down your reasoning into clear steps and show your work."
+                )
             prompt = f"<s>[INST] <<SYS>>\n{system_message}\n<</SYS>>\n\n{question} [/INST]"
         
-        else:  # default
-            if system_message:
-                prompt = f"{system_message}\n\nQuestion: {question}\n\nAnswer:"
-            else:
-                prompt = f"Question: {question}\n\nAnswer:"
+        else:  # default - matches training prompt template
+            prompt = (
+                "You must reason step by step before answering. "
+                "Do not give the final answer until reasoning is complete.\n\n"
+                f"Question: {question}\n\n"
+                "Let's solve this step by step:\n"
+            )
         
         return prompt
     
