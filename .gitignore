@@ -1,3 +1,6 @@
+# Private documentation - not for version control
+PRIVATE_TECHNICAL_AUDIT.md
+
 # Python virtual environments
 .venv/
 venv/
@@ -46,6 +49,7 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
+*.py,cover
 .hypothesis/
 
 # Jupyter Notebook
@@ -140,3 +144,8 @@ Thumbs.db
 
 # Tensorboard
 events.out.tfevents.*
+
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
