@@ -1,0 +1,73 @@
+# Custom Dataset Configuration Template
+
+dataset:
+  name: "custom_dataset"
+  
+  # Data source - choose one
+  source: "path/to/dataset"  # HuggingFace dataset name or local path
+  # local_path: "/path/to/local/data"
+  # hf_dataset: "organization/dataset-name"
+  
+  # Dataset splits
+  splits:
+    train: "train"
+    validation: "validation"
+    test: "test"  # Optional
+  
+  # Preprocessing
+  preprocessing:
+    max_length: 2048
+    prompt_key: "input"  # Column name for prompts/inputs
+    chosen_key: "chosen"  # Column name for preferred responses
+    rejected_key: "rejected"  # Column name for rejected responses (if available)
+    
+    # Optional: format template
+    prompt_template: "{input}"  # Use {key} to reference columns
+    response_template: "{output}"
+    
+  # Sampling strategy
+  sampling:
+    strategy: "uniform"  # Options: uniform, weighted, importance
+    weights_column: null  # Optional: column name for sample weights
+    
+  # Data loading
+  batch_size: 4
+  num_workers: 4
+  shuffle: true
+  pin_memory: true
+  
+  # Filtering
+  filters:
+    min_length: 10
+    max_length: 2048
+    remove_duplicates: true
+    quality_threshold: 0.0
+    
+    # Custom filters (optional)
+    custom_filter_fn: null  # Path to Python function
+    filter_columns: {}  # Column-based filters: {column: [allowed_values]}
+  
+  # Tokenization
+  tokenization:
+    add_special_tokens: true
+    padding: "max_length"  # Options: max_length, longest, do_not_pad
+    truncation: true
+    return_attention_mask: true
+  
+  # Augmentation (optional)
+  augmentation:
+    enabled: false
+    paraphrase: false
+    backtranslation: false
+    synonym_replacement: false
+    random_insertion: false
+    random_swap: false
+    random_deletion: false
+    augmentation_ratio: 0.1
+  
+  # Advanced options
+  advanced:
+    cache_dir: ".cache/datasets"
+    streaming: false
+    num_proc: 4  # Number of processes for parallel preprocessing
+    seed: 42

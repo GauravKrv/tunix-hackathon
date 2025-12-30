@@ -1,0 +1,74 @@
+# Gemma2 2B Model Configuration
+
+model:
+  name: "gemma2"
+  size: "2b"
+  architecture: "gemma2"
+  
+  # Model source
+  pretrained:
+    name_or_path: "google/gemma-2-2b-it"
+    revision: "main"
+    token: null  # Set HF_TOKEN environment variable or provide here
+  
+  # Model architecture settings
+  architecture_config:
+    hidden_size: 2304
+    num_hidden_layers: 26
+    num_attention_heads: 8
+    num_key_value_heads: 4
+    intermediate_size: 9216
+    vocab_size: 256000
+    max_position_embeddings: 8192
+    rope_theta: 10000.0
+  
+  # Precision and optimization
+  precision:
+    dtype: "bfloat16"  # Options: float32, float16, bfloat16
+    compute_dtype: "bfloat16"
+    
+  # Quantization (optional)
+  quantization:
+    enabled: false
+    method: "bitsandbytes"  # Options: bitsandbytes, gptq, awq
+    load_in_8bit: false
+    load_in_4bit: false
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_use_double_quant: true
+  
+  # LoRA/PEFT configuration
+  peft:
+    enabled: true
+    method: "lora"  # Options: lora, qlora, prefix_tuning, p_tuning, prompt_tuning
+    
+    # LoRA specific
+    lora_r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    lora_bias: "none"
+    task_type: "CAUSAL_LM"
+  
+  # Generation config
+  generation:
+    max_new_tokens: 512
+    temperature: 0.7
+    top_p: 0.9
+    top_k: 50
+    repetition_penalty: 1.1
+    do_sample: true
+    num_beams: 1
+    early_stopping: false
+  
+  # Gradient checkpointing
+  gradient_checkpointing: true
+  gradient_checkpointing_kwargs:
+    use_reentrant: false
+  
+  # Memory optimization
+  memory:
+    use_cache: false  # Disable during training
+    low_cpu_mem_usage: true
+    offload_folder: null
+    offload_state_dict: false

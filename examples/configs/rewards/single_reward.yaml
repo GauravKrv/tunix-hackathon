@@ -1,0 +1,40 @@
+# Single Reward Model Configuration
+
+reward:
+  type: "single"
+  
+  # Reward model
+  model:
+    name_or_path: "OpenAssistant/reward-model-deberta-v3-large-v2"
+    revision: "main"
+    token: null
+    
+  # Model settings
+  settings:
+    dtype: "bfloat16"
+    device_map: "auto"
+    max_length: 2048
+    
+  # Normalization
+  normalization:
+    enabled: true
+    method: "running_mean_std"  # Options: running_mean_std, minmax, zscore, none
+    clip_min: -10.0
+    clip_max: 10.0
+    
+  # Reward computation
+  computation:
+    batch_size: 8
+    aggregate_method: "mean"  # Options: mean, sum, last_token, max
+    
+  # Caching
+  cache:
+    enabled: true
+    cache_dir: ".cache/rewards"
+    max_cache_size: 10000
+  
+  # Logging
+  logging:
+    log_distribution: true
+    log_frequency: 100
+    histogram_bins: 50

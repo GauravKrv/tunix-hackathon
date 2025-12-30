@@ -1,0 +1,52 @@
+# Summarization Dataset Configuration (TL;DR, CNN/DailyMail, etc.)
+
+dataset:
+  name: "summarization"
+  source: "CarperAI/openai_summarize_comparisons"
+  
+  # Dataset splits
+  splits:
+    train: "train"
+    validation: "valid1"
+  
+  # Preprocessing
+  preprocessing:
+    max_length: 1024
+    max_summary_length: 256
+    prompt_template: "Summarize the following text:\n\n{text}\n\nSummary:"
+    text_key: "info.post"
+    summary_key: "summary"
+    
+  # Sampling strategy
+  sampling:
+    strategy: "uniform"
+    filter_source: []  # Options: ["reddit", "news", etc.]
+  
+  # Data loading
+  batch_size: 8
+  num_workers: 4
+  shuffle: true
+  
+  # Filtering
+  filters:
+    min_length: 50
+    max_length: 1024
+    min_summary_length: 10
+    max_summary_length: 256
+    remove_duplicates: true
+    quality_threshold: 0.0
+    compression_ratio_min: 2.0  # Original text should be at least 2x longer than summary
+    compression_ratio_max: 20.0
+  
+  # Task-specific settings
+  task:
+    type: "summarization"
+    metrics: ["rouge1", "rouge2", "rougeL", "bleu"]
+    require_faithfulness: true
+    require_relevance: true
+  
+  # Augmentation
+  augmentation:
+    enabled: false
+    paraphrase_input: false
+    extract_keywords: false
