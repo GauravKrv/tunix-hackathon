@@ -12,6 +12,7 @@ from train import (
     TrainingConfig,
     TPUConfig,
     RewardConfig,
+    GRPOConfig,
     TunixTrainer,
     load_model_and_tokenizer,
     setup_logging,
@@ -26,16 +27,18 @@ class CustomReasoningDataset(Dataset):
     Only uses question and answer - model generates its own reasoning.
     """
     
-    def __init__(self, examples, tokenizer, max_length=2048):
+    def __init__(self, examples, tokenizer, max_length=2048, return_prompts_only=False):
         """
         Args:
             examples: List of dicts with 'question' and 'answer' fields
             tokenizer: Tokenizer instance
             max_length: Maximum sequence length
+            return_prompts_only: If True, return prompts only for GRPO training
         """
         self.examples = examples
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.return_prompts_only = return_prompts_only
     
     def _create_prompt(self, question: str) -> str:
         """Create prompt with explicit reasoning instruction."""
@@ -58,19 +61,33 @@ class CustomReasoningDataset(Dataset):
         prompt = self._create_prompt(question)
         full_text = prompt + answer
         
-        encoded = self.tokenizer(
-            full_text,
-            max_length=self.max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt"
-        )
-        
-        return {
-            'input_ids': encoded['input_ids'].squeeze(0),
-            'attention_mask': encoded['attention_mask'].squeeze(0),
-            'labels': encoded['input_ids'].squeeze(0),
-        }
+        if self.return_prompts_only:
+            encoded = self.tokenizer(
+                prompt,
+                max_length=self.max_length,
+                padding=False,
+                truncation=True,
+                return_tensors="pt"
+            )
+            return {
+                'prompt': prompt,
+                'input_ids': encoded['input_ids'].squeeze(0),
+                'attention_mask': encoded['attention_mask'].squeeze(0),
+            }
+        else:
+            encoded = self.tokenizer(
+                full_text,
+                max_length=self.max_length,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt"
+            )
+            
+            return {
+                'input_ids': encoded['input_ids'].squeeze(0),
+                'attention_mask': encoded['attention_mask'].squeeze(0),
+                'labels': encoded['input_ids'].squeeze(0),
+            }
 
 
 def create_sample_dataset():
@@ -177,12 +194,14 @@ def _mp_fn_custom(index: int, config: TunixConfig, examples: list):
         examples=examples[:int(len(examples) * 0.9)],  # 90% for training
         tokenizer=tokenizer,
         max_length=config.model.max_length,
+        return_prompts_only=config.training.use_grpo,
     )
     
     eval_dataset = CustomReasoningDataset(
         examples=examples[int(len(examples) * 0.9):],  # 10% for evaluation
         tokenizer=tokenizer,
         max_length=config.model.max_length,
+        return_prompts_only=False,
     )
     
     logger.info(f"Training samples: {len(train_dataset)}")
@@ -226,14 +245,71 @@ def run_example_2():
     xmp.spawn(_mp_fn_custom, args=(config, examples), nprocs=config.tpu.num_cores)
 
 
+def example_training_grpo():
+    """Example 3: Training with GRPO (Group Relative Policy Optimization)."""
+    
+    config = TunixConfig(
+        model=ModelConfig(
+            model_name="google/gemma-2-2b",
+            max_length=2048,
+        ),
+        training=TrainingConfig(
+            output_dir="./grpo_outputs",
+            num_epochs=3,
+            batch_size=4,
+            learning_rate=5e-5,
+            warmup_steps=100,
+            logging_steps=10,
+            save_steps=500,
+            eval_steps=100,
+            use_grpo=True,
+        ),
+        tpu=TPUConfig(
+            num_cores=8,
+            gradient_accumulation_steps=1,
+        ),
+        reward=RewardConfig(
+            use_quality_reward=True,
+            use_safety_reward=True,
+            use_diversity_reward=True,
+            use_coherence_reward=True,
+        ),
+        grpo=GRPOConfig(
+            num_completions_per_prompt=4,
+            generation_max_length=256,
+            generation_temperature=0.8,
+            generation_top_p=0.9,
+            generation_top_k=50,
+            normalize_advantages=True,
+            use_kl_penalty=True,
+            kl_penalty_coef=0.01,
+        ),
+    )
+    
+    return config
+
+
+def run_example_3():
+    """Run example with GRPO training."""
+    print("=" * 50)
+    print("Example 3: GRPO Training")
+    print("=" * 50)
+    
+    config = example_training_grpo()
+    texts = create_sample_dataset()
+    
+    xmp.spawn(_mp_fn_custom, args=(config, texts), nprocs=config.tpu.num_cores)
+
+
 def main():
     """Main entry point for examples."""
     import sys
     
     if len(sys.argv) < 2:
-        print("Usage: python example_usage.py [1|2]")
+        print("Usage: python example_usage.py [1|2|3]")
         print("  1: Custom configuration example")
         print("  2: Custom reward weights example")
+        print("  3: GRPO training example")
         sys.exit(1)
     
     example_num = sys.argv[1]
@@ -242,6 +318,8 @@ def main():
         run_example_1()
     elif example_num == "2":
         run_example_2()
+    elif example_num == "3":
+        run_example_3()
     else:
         print(f"Unknown example: {example_num}")
         sys.exit(1)

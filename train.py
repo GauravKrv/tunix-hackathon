@@ -71,6 +71,7 @@ class TrainingConfig:
     seed: int = 42
     gradient_checkpointing: bool = True
     bf16: bool = True
+    use_grpo: bool = False
 
 
 @dataclass
@@ -88,12 +89,27 @@ class RewardConfig:
 
 
 @dataclass
+class GRPOConfig:
+    """GRPO-specific configuration for group-relative policy optimization."""
+    num_completions_per_prompt: int = 4
+    generation_max_length: int = 256
+    generation_temperature: float = 0.8
+    generation_top_p: float = 0.9
+    generation_top_k: int = 50
+    normalize_advantages: bool = True
+    advantage_epsilon: float = 1e-8
+    use_kl_penalty: bool = True
+    kl_penalty_coef: float = 0.01
+
+
+@dataclass
 class TunixConfig:
     """Tunix trainer configuration."""
     model: ModelConfig = field(default_factory=ModelConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     tpu: TPUConfig = field(default_factory=TPUConfig)
     reward: RewardConfig = field(default_factory=RewardConfig)
+    grpo: GRPOConfig = field(default_factory=GRPOConfig)
 
 
 class CompositeRewardFunction:
@@ -277,10 +293,11 @@ class ReasoningDataset(Dataset):
 class DummyDataset(Dataset):
     """Dummy dataset for demonstration purposes."""
     
-    def __init__(self, tokenizer, num_samples: int = 1000, max_length: int = 2048):
+    def __init__(self, tokenizer, num_samples: int = 1000, max_length: int = 2048, return_prompts_only: bool = False):
         self.tokenizer = tokenizer
         self.num_samples = num_samples
         self.max_length = max_length
+        self.return_prompts_only = return_prompts_only
         
         self.examples = [
             {
@@ -331,19 +348,33 @@ class DummyDataset(Dataset):
         # Full text includes prompt + answer (model generates reasoning)
         full_text = prompt + answer
         
-        encoded = self.tokenizer(
-            full_text,
-            max_length=self.max_length,
-            padding="max_length",
-            truncation=True,
-            return_tensors="pt"
-        )
-        
-        return {
-            'input_ids': encoded['input_ids'].squeeze(0),
-            'attention_mask': encoded['attention_mask'].squeeze(0),
-            'labels': encoded['input_ids'].squeeze(0),
-        }
+        if self.return_prompts_only:
+            encoded = self.tokenizer(
+                prompt,
+                max_length=self.max_length,
+                padding=False,
+                truncation=True,
+                return_tensors="pt"
+            )
+            return {
+                'prompt': prompt,
+                'input_ids': encoded['input_ids'].squeeze(0),
+                'attention_mask': encoded['attention_mask'].squeeze(0),
+            }
+        else:
+            encoded = self.tokenizer(
+                full_text,
+                max_length=self.max_length,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt"
+            )
+            
+            return {
+                'input_ids': encoded['input_ids'].squeeze(0),
+                'attention_mask': encoded['attention_mask'].squeeze(0),
+                'labels': encoded['input_ids'].squeeze(0),
+            }
 
 
 class TunixTrainer:
@@ -451,6 +482,237 @@ class TunixTrainer:
                 drop_last=False,
             )
     
+    def sample_completions_for_prompts(
+        self,
+        prompt_input_ids: torch.Tensor,
+        prompt_attention_mask: torch.Tensor,
+        num_completions: int
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Sample multiple completions for each prompt in the batch.
+        Returns: (all_input_ids, all_attention_masks, all_log_probs)
+        """
+        batch_size = prompt_input_ids.size(0)
+        
+        all_completions = []
+        all_attention_masks = []
+        all_log_probs = []
+        
+        with torch.no_grad():
+            for _ in range(num_completions):
+                outputs = self.model.generate(
+                    input_ids=prompt_input_ids,
+                    attention_mask=prompt_attention_mask,
+                    max_new_tokens=self.config.grpo.generation_max_length,
+                    temperature=self.config.grpo.generation_temperature,
+                    top_p=self.config.grpo.generation_top_p,
+                    top_k=self.config.grpo.generation_top_k,
+                    do_sample=True,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    return_dict_in_generate=True,
+                    output_scores=True,
+                )
+                
+                generated_ids = outputs.sequences
+                
+                attention_mask = (generated_ids != self.tokenizer.pad_token_id).long()
+                
+                scores = torch.stack(outputs.scores, dim=1)
+                log_probs = torch.nn.functional.log_softmax(scores, dim=-1)
+                
+                generated_tokens = generated_ids[:, prompt_input_ids.size(1):]
+                token_log_probs = torch.gather(
+                    log_probs, 
+                    2, 
+                    generated_tokens.unsqueeze(-1)
+                ).squeeze(-1)
+                
+                sequence_log_probs = token_log_probs.sum(dim=1)
+                
+                all_completions.append(generated_ids)
+                all_attention_masks.append(attention_mask)
+                all_log_probs.append(sequence_log_probs)
+        
+        all_completions = torch.stack(all_completions, dim=1)
+        all_attention_masks = torch.stack(all_attention_masks, dim=1)
+        all_log_probs = torch.stack(all_log_probs, dim=1)
+        
+        all_completions = all_completions.view(batch_size * num_completions, -1)
+        all_attention_masks = all_attention_masks.view(batch_size * num_completions, -1)
+        all_log_probs = all_log_probs.view(batch_size * num_completions)
+        
+        return all_completions, all_attention_masks, all_log_probs
+    
+    def compute_rewards_for_completions(
+        self,
+        completion_ids: torch.Tensor,
+        attention_masks: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute rewards for generated completions."""
+        with torch.no_grad():
+            outputs = self.model(
+                input_ids=completion_ids,
+                attention_mask=attention_masks,
+                output_hidden_states=True,
+            )
+            
+            logits = outputs.logits
+            hidden_states = outputs.hidden_states[-1]
+            
+            rewards, _ = self.reward_fn.compute_composite_reward(
+                logits=logits,
+                hidden_states=hidden_states,
+                targets=completion_ids,
+                attention_mask=attention_masks,
+            )
+        
+        return rewards
+    
+    def compute_group_advantages(
+        self,
+        rewards: torch.Tensor,
+        num_completions_per_prompt: int
+    ) -> torch.Tensor:
+        """
+        Compute advantages relative to the group mean and std for each prompt.
+        
+        Args:
+            rewards: Tensor of shape (batch_size * num_completions_per_prompt,)
+            num_completions_per_prompt: Number of completions sampled per prompt
+        
+        Returns:
+            advantages: Tensor of shape (batch_size * num_completions_per_prompt,)
+        """
+        batch_size = rewards.size(0) // num_completions_per_prompt
+        
+        assert rewards.size(0) % num_completions_per_prompt == 0, \
+            f"Rewards size {rewards.size(0)} must be divisible by " \
+            f"num_completions_per_prompt {num_completions_per_prompt}"
+        
+        rewards_grouped = rewards.view(batch_size, num_completions_per_prompt)
+        
+        group_means = rewards_grouped.mean(dim=1, keepdim=True)
+        group_stds = rewards_grouped.std(dim=1, keepdim=True)
+        
+        if self.config.grpo.normalize_advantages:
+            advantages_grouped = (rewards_grouped - group_means) / (group_stds + self.config.grpo.advantage_epsilon)
+        else:
+            advantages_grouped = rewards_grouped - group_means
+        
+        advantages = advantages_grouped.view(-1)
+        
+        return advantages
+    
+    def grpo_training_step(
+        self, 
+        batch: Dict[str, torch.Tensor]
+    ) -> Tuple[torch.Tensor, Dict[str, float]]:
+        """
+        Execute GRPO training step with group-based sampling and advantage calculation.
+        
+        This method implements the core GRPO algorithm:
+        1. Sample multiple completions for each prompt (group-based sampling)
+        2. Compute rewards for all completions
+        3. Calculate advantages relative to group mean and std
+        4. Use group-relative advantages for policy gradient updates
+        """
+        prompt_input_ids = batch['input_ids'].to(self.device)
+        prompt_attention_mask = batch['attention_mask'].to(self.device)
+        
+        num_completions = self.config.grpo.num_completions_per_prompt
+        batch_size = prompt_input_ids.size(0)
+        
+        assert num_completions > 1, \
+            f"GRPO requires num_completions_per_prompt > 1, got {num_completions}"
+        
+        completion_ids, completion_masks, old_log_probs = self.sample_completions_for_prompts(
+            prompt_input_ids=prompt_input_ids,
+            prompt_attention_mask=prompt_attention_mask,
+            num_completions=num_completions
+        )
+        
+        assert completion_ids.size(0) == batch_size * num_completions, \
+            f"Expected {batch_size * num_completions} completions, got {completion_ids.size(0)}"
+        
+        self.logger.debug(
+            f"GRPO Validation: Sampled {completion_ids.size(0)} completions "
+            f"for {batch_size} prompts ({num_completions} per prompt)"
+        )
+        
+        rewards = self.compute_rewards_for_completions(completion_ids, completion_masks)
+        
+        advantages = self.compute_group_advantages(rewards, num_completions)
+        
+        advantages_grouped = advantages.view(batch_size, num_completions)
+        self.logger.debug(
+            f"GRPO Validation: Advantage stats per group - "
+            f"mean: {advantages_grouped.mean(dim=1).abs().mean():.4f}, "
+            f"std: {advantages_grouped.std(dim=1).mean():.4f}"
+        )
+        
+        rewards_grouped = rewards.view(batch_size, num_completions)
+        for group_idx in range(min(3, batch_size)):
+            group_rewards = rewards_grouped[group_idx]
+            group_advs = advantages_grouped[group_idx]
+            self.logger.debug(
+                f"GRPO Group {group_idx}: rewards={group_rewards.tolist()}, "
+                f"advantages={group_advs.tolist()}"
+            )
+        
+        assert advantages_grouped.shape == (batch_size, num_completions), \
+            f"Advantages shape mismatch: expected ({batch_size}, {num_completions}), got {advantages_grouped.shape}"
+        
+        for group_idx in range(batch_size):
+            group_mean = advantages_grouped[group_idx].mean()
+            assert abs(group_mean) < 1e-5 or not self.config.grpo.normalize_advantages, \
+                f"Group {group_idx} advantages not centered: mean={group_mean:.6f}"
+        
+        self.logger.debug("GRPO Validation: All assertions passed - group sampling verified")
+        
+        outputs = self.model(
+            input_ids=completion_ids,
+            attention_mask=completion_masks,
+            output_hidden_states=True,
+        )
+        
+        logits = outputs.logits
+        prompt_len = prompt_input_ids.size(1)
+        
+        generated_tokens = completion_ids[:, prompt_len:]
+        generated_logits = logits[:, prompt_len-1:-1, :]
+        
+        log_probs = torch.nn.functional.log_softmax(generated_logits, dim=-1)
+        token_log_probs = torch.gather(
+            log_probs,
+            2,
+            generated_tokens.unsqueeze(-1)
+        ).squeeze(-1)
+        
+        sequence_log_probs = token_log_probs.sum(dim=1)
+        
+        policy_loss = -(advantages.detach() * sequence_log_probs).mean()
+        
+        if self.config.grpo.use_kl_penalty:
+            kl_div = (old_log_probs.detach() - sequence_log_probs).abs()
+            kl_penalty = self.config.grpo.kl_penalty_coef * kl_div.mean()
+            total_loss = policy_loss + kl_penalty
+        else:
+            kl_penalty = torch.tensor(0.0, device=self.device)
+            total_loss = policy_loss
+        
+        metrics = {
+            'policy_loss': policy_loss.item(),
+            'kl_penalty': kl_penalty.item() if isinstance(kl_penalty, torch.Tensor) else kl_penalty,
+            'total_loss': total_loss.item(),
+            'mean_reward': rewards.mean().item(),
+            'std_reward': rewards.std().item(),
+            'mean_advantage': advantages.mean().item(),
+            'std_advantage': advantages.std().item(),
+        }
+        
+        return total_loss, metrics
+    
     def training_step(
         self, 
         batch: Dict[str, torch.Tensor]
@@ -528,15 +790,27 @@ class TunixTrainer:
     def train_epoch(self, epoch: int):
         """Train for one epoch."""
         self.model.train()
-        epoch_metrics = {
-            'loss': [],
-            'reward_loss': [],
-            'total_loss': [],
-            'quality': [],
-            'safety': [],
-            'diversity': [],
-            'coherence': [],
-        }
+        
+        if self.config.training.use_grpo:
+            epoch_metrics = {
+                'policy_loss': [],
+                'kl_penalty': [],
+                'total_loss': [],
+                'mean_reward': [],
+                'std_reward': [],
+                'mean_advantage': [],
+                'std_advantage': [],
+            }
+        else:
+            epoch_metrics = {
+                'loss': [],
+                'reward_loss': [],
+                'total_loss': [],
+                'quality': [],
+                'safety': [],
+                'diversity': [],
+                'coherence': [],
+            }
         
         para_loader = pl.ParallelLoader(
             self.train_loader, 
@@ -546,7 +820,10 @@ class TunixTrainer:
         for step, batch in enumerate(para_loader):
             start_time = time.time()
             
-            loss, metrics = self.training_step(batch)
+            if self.config.training.use_grpo:
+                loss, metrics = self.grpo_training_step(batch)
+            else:
+                loss, metrics = self.training_step(batch)
             
             if self.config.tpu.gradient_accumulation_steps > 1:
                 loss = loss / self.config.tpu.gradient_accumulation_steps
@@ -582,13 +859,23 @@ class TunixTrainer:
                     log_metrics['step_time'] = step_time
                     
                     if xm.is_master_ordinal():
-                        self.logger.info(
-                            f"Epoch: {epoch} | Step: {self.global_step} | "
-                            f"Loss: {log_metrics.get('loss', 0):.4f} | "
-                            f"Reward: {log_metrics.get('total', 0):.4f} | "
-                            f"LR: {lr:.2e} | "
-                            f"Time: {step_time:.2f}s"
-                        )
+                        if self.config.training.use_grpo:
+                            self.logger.info(
+                                f"Epoch: {epoch} | Step: {self.global_step} | "
+                                f"Policy Loss: {log_metrics.get('policy_loss', 0):.4f} | "
+                                f"Reward: {log_metrics.get('mean_reward', 0):.4f} | "
+                                f"Advantage: {log_metrics.get('mean_advantage', 0):.4f} | "
+                                f"LR: {lr:.2e} | "
+                                f"Time: {step_time:.2f}s"
+                            )
+                        else:
+                            self.logger.info(
+                                f"Epoch: {epoch} | Step: {self.global_step} | "
+                                f"Loss: {log_metrics.get('loss', 0):.4f} | "
+                                f"Reward: {log_metrics.get('total', 0):.4f} | "
+                                f"LR: {lr:.2e} | "
+                                f"Time: {step_time:.2f}s"
+                            )
                         
                         self.log_metrics(log_metrics, step=self.global_step)
                 
@@ -625,12 +912,40 @@ class TunixTrainer:
         avg_loss = np.mean(eval_metrics['eval_loss'])
         return avg_loss
     
+    def validate_grpo_setup(self):
+        """Validate GRPO configuration before training."""
+        if not self.config.training.use_grpo:
+            return
+        
+        assert self.config.grpo.num_completions_per_prompt > 1, \
+            f"GRPO requires num_completions_per_prompt > 1, got {self.config.grpo.num_completions_per_prompt}"
+        
+        assert self.tokenizer is not None, \
+            "GRPO requires tokenizer for text generation"
+        
+        assert hasattr(self.train_dataset, 'return_prompts_only') and \
+               self.train_dataset.return_prompts_only, \
+            "GRPO requires dataset with return_prompts_only=True"
+        
+        self.logger.info("=" * 60)
+        self.logger.info("GRPO CONFIGURATION VALIDATED")
+        self.logger.info("=" * 60)
+        self.logger.info(f"Number of completions per prompt: {self.config.grpo.num_completions_per_prompt}")
+        self.logger.info(f"Generation max length: {self.config.grpo.generation_max_length}")
+        self.logger.info(f"Generation temperature: {self.config.grpo.generation_temperature}")
+        self.logger.info(f"Normalize advantages: {self.config.grpo.normalize_advantages}")
+        self.logger.info(f"Use KL penalty: {self.config.grpo.use_kl_penalty}")
+        self.logger.info("=" * 60)
+    
     def train(self):
         """Main training loop."""
         self.logger.info("Starting training...")
         self.logger.info(f"Number of epochs: {self.config.training.num_epochs}")
         self.logger.info(f"Batch size: {self.config.training.batch_size}")
         self.logger.info(f"Learning rate: {self.config.training.learning_rate}")
+        self.logger.info(f"Using GRPO: {self.config.training.use_grpo}")
+        
+        self.validate_grpo_setup()
         
         self.setup_optimization()
         self.setup_dataloaders()
@@ -649,8 +964,13 @@ class TunixTrainer:
             
             if xm.is_master_ordinal():
                 self.logger.info(f"Epoch {epoch + 1} completed")
-                self.logger.info(f"Average loss: {epoch_metrics.get('loss', 0):.4f}")
-                self.logger.info(f"Average reward: {epoch_metrics.get('total', 0):.4f}")
+                if self.config.training.use_grpo:
+                    self.logger.info(f"Average policy loss: {epoch_metrics.get('policy_loss', 0):.4f}")
+                    self.logger.info(f"Average reward: {epoch_metrics.get('mean_reward', 0):.4f}")
+                    self.logger.info(f"Average advantage: {epoch_metrics.get('mean_advantage', 0):.4f}")
+                else:
+                    self.logger.info(f"Average loss: {epoch_metrics.get('loss', 0):.4f}")
+                    self.logger.info(f"Average reward: {epoch_metrics.get('total', 0):.4f}")
             
             if self.eval_loader is not None:
                 eval_loss = self.evaluate()
@@ -801,12 +1121,14 @@ def _mp_fn(index: int, config: TunixConfig):
         tokenizer=tokenizer,
         num_samples=10000,
         max_length=config.model.max_length,
+        return_prompts_only=config.training.use_grpo,
     )
     
     eval_dataset = DummyDataset(
         tokenizer=tokenizer,
         num_samples=1000,
         max_length=config.model.max_length,
+        return_prompts_only=False,
     )
     
     trainer = TunixTrainer(
@@ -907,6 +1229,23 @@ def parse_args():
         default=8,
         help="Number of TPU cores",
     )
+    parser.add_argument(
+        "--use_grpo",
+        action="store_true",
+        help="Use GRPO (Group Relative Policy Optimization) training",
+    )
+    parser.add_argument(
+        "--num_completions_per_prompt",
+        type=int,
+        default=4,
+        help="Number of completions to sample per prompt for GRPO",
+    )
+    parser.add_argument(
+        "--generation_max_length",
+        type=int,
+        default=256,
+        help="Maximum length for generated completions in GRPO",
+    )
     
     return parser.parse_args()
 
@@ -930,12 +1269,17 @@ def main():
             save_steps=args.save_steps,
             eval_steps=args.eval_steps,
             seed=args.seed,
+            use_grpo=args.use_grpo,
         ),
         tpu=TPUConfig(
             num_cores=args.num_tpu_cores,
             gradient_accumulation_steps=args.gradient_accumulation_steps,
         ),
         reward=RewardConfig(),
+        grpo=GRPOConfig(
+            num_completions_per_prompt=args.num_completions_per_prompt,
+            generation_max_length=args.generation_max_length,
+        ),
     )
     
     os.makedirs(config.training.output_dir, exist_ok=True)
@@ -945,6 +1289,7 @@ def main():
         'training': vars(config.training),
         'tpu': vars(config.tpu),
         'reward': vars(config.reward),
+        'grpo': vars(config.grpo),
     }
     
     with open(Path(config.training.output_dir) / "config.json", 'w') as f:

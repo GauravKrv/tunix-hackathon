@@ -57,7 +57,7 @@ mypy>=1.5.0
 
 # Serialization
 msgpack>=1.0.5
-pickle5>=0.0.12
+# pickle5>=0.0.12  # Not needed for Python 3.8+, pickle protocol 5 is built-in
 
 # Performance profiling
 py-spy>=0.3.14
@@ -90,7 +90,7 @@ typing-extensions>=4.7.0
 # ============================================================================
 # Gemma2 Training Requirements
 # ============================================================================
-torch-xla>=2.1.0
+# torch-xla>=2.1.0  # Not available for Python 3.13 yet, needed only for TPU training
 transformers>=4.36.0
 accelerate>=0.25.0
 datasets>=2.14.0

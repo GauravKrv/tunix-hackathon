@@ -1,8 +1,8 @@
-# Python virtual environment
+# Python virtual environments
 .venv/
 venv/
-ENV/
 env/
+ENV/
 
 # Python cache and compiled files
 __pycache__/
@@ -45,11 +45,15 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *.cover
-*.log
+.hypothesis/
 .pytest_cache/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
 
 # pyenv
 .python-version
@@ -63,7 +67,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -71,25 +75,25 @@ venv.bak/
 *.swn
 *.bak
 *~
-
-# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Project specific
+# Model outputs and checkpoints
 outputs/
-logs/
 checkpoints/
 *.ckpt
+*.pt
 *.pth
+*.h5
+*.pb
 *.safetensors
+
+# Logs
+logs/
+*.log
 wandb/
 .wandb/
+tensorboard_logs/
+tb_logs/
 
 # Temporary requirements files (created during setup)
 requirements_fixed.txt
@@ -99,9 +103,24 @@ requirements_minimal.txt
 # Model files
 models/
 *.bin
-*.h5
 
-# Data
-data/*.json
+# Data files
 data/*.csv
+data/*.json
+data/*.pkl
+datasets/
 !data/example_*.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
