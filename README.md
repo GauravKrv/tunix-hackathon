@@ -1,568 +1,403 @@
-# Tunix/JAX TPU Training Project
+# RL-Reasoning: Teaching Language Models to Show Their Work
 
-A scalable machine learning training framework built with Tunix, JAX, and optimized for TPU acceleration.
-
-## Project Overview
-
-This project provides a flexible infrastructure for training machine learning models using JAX on TPU hardware, with support for custom reward functions, distributed training, and comprehensive evaluation pipelines.
+An experimental reinforcement learning approach to encouraging language models to externalize their reasoning process through iterative reward-based training, rather than supervised fine-tuning on curated reasoning datasets.
 
 ---
 
-## Inference Script for Fine-Tuned Reasoning Models
+## 1. The Problem: Hidden Reasoning in Language Models
 
-This repository includes an inference script for loading fine-tuned language models and generating step-by-step reasoning for custom questions.
+Modern language models often arrive at correct answers through opaque internal processes, providing minimal insight into their reasoning steps. When they do produce step-by-step explanations, these are frequently post-hoc rationalizations rather than genuine intermediate reasoning.
 
-### Inference Features
+**Key challenges:**
 
-- Load fine-tuned models from local paths or HuggingFace Hub
-- Multiple prompt template formats (default, Alpaca, ChatML, Llama2)
-- Customizable generation parameters
-- Clear step-by-step reasoning display
-- Batch processing from JSON files
-- Support for 8-bit and 4-bit quantization
-- Formatted output with reasoning step parsing
+- **No Ground Truth Process**: Unlike supervised learning scenarios where we have perfect reasoning traces, we typically only know the final answer is correct—not whether the intermediate steps represent actual reasoning
+- **Brittle Generalization**: Models trained on curated reasoning datasets often memorize patterns rather than learning robust reasoning strategies
+- **Opacity**: Even when models produce text that looks like reasoning, we cannot verify whether these steps genuinely contributed to the answer
 
-### Quick Inference Usage
-
-Run inference with a single question:
-
-```bash
-python inference.py \
-    --model_path /path/to/fine-tuned-model \
-    --question "If a train travels 120 miles in 2 hours, what is its average speed?"
-```
-
-Process multiple questions from a JSON file:
-
-```bash
-python inference.py \
-    --model_path /path/to/fine-tuned-model \
-    --questions_file example_questions.json \
-    --output_file results.json
-```
-
-See [Inference Documentation](#inference-documentation) below for complete details.
+**Why this matters:** For high-stakes applications (mathematics, scientific reasoning, complex decision-making), we need models that can show their work in ways we can follow, critique, and trust—not just produce fluent text that resembles reasoning.
 
 ---
 
-## Dataset Preparation Pipeline
+## 2. Our Approach: RL with Heuristic Rewards
 
-A comprehensive, production-ready pipeline for preparing reasoning datasets (GSM8K, MATH, ARC) in Tunix-compatible format.
+Rather than supervised fine-tuning (SFT) on curated reasoning datasets, we use reinforcement learning with composite reward functions to encourage models to develop and externalize reasoning behavior.
 
-### 🚀 Quick Start
+### Why RL Instead of SFT?
 
-```bash
-# Run the demo with sample data
-cd data
-python demo.py
+**SFT Limitations:**
+- Requires large datasets of high-quality reasoning traces (expensive to create, hard to scale)
+- Models learn to mimic surface patterns rather than develop robust reasoning strategies
+- No mechanism to explore alternative reasoning paths or discover novel approaches
+- Brittle to distribution shift—fails when test problems differ from training examples
 
-# Or process your own dataset
-python prepare_reasoning_dataset.py \
-  --dataset gsm8k \
-  --input /path/to/gsm8k_train.jsonl \
-  --output processed/gsm8k
+**RL Advantages:**
+- Can learn from outcome signals (correct/incorrect answers) without requiring perfect reasoning traces
+- Encourages exploration of diverse reasoning strategies through policy optimization
+- Naturally balances exploitation (using known good strategies) with exploration (trying new approaches)
+- Iteratively refines behavior based on what actually leads to correct answers
+
+### Reward Function Design
+
+Our approach combines multiple reward signals:
+
+**1. Correctness Reward (Outcome-Based)**
+- Primary signal: Did the model arrive at the correct final answer?
+- Simple exact-match or token-overlap comparison with ground truth
+- Provides clear learning signal but doesn't specify *how* to reason
+
+**2. Process Reward Heuristics (Step-Based)**
+- **Important caveat**: These are simple heuristics, not learned verifiers
+- Scoring approach: Downgraded from per-step verification to lightweight pattern matching
+- Measures: presence of transition words, step length, logical flow markers
+- **Does not verify correctness** of individual reasoning steps—only surface coherence
+- See `rewards/reasoning_coherence_reward.py` for implementation
+
+**3. Coherence and Formatting**
+- Rewards well-structured output (numbered steps, clear transitions)
+- Encourages consistent formatting that's easy to follow
+- Penalizes incomplete or malformed reasoning traces
+
+**Composition Strategy:**
+We use weighted additive composition (see `rewards/composite_reward.py`) with these approximate weights:
+- Correctness: 0.6 (primary objective)
+- Process quality: 0.3 (encourage good reasoning form)
+- Format/coherence: 0.1 (ensure readability)
+
+**Critical Disclaimer:** Our "process rewards" are simple heuristics (keyword matching, length checks, transition word counting), NOT true verification of reasoning correctness. We cannot definitively say whether a given reasoning step is valid—only whether it exhibits surface characteristics associated with coherent explanations.
+
+---
+
+## 3. Training Setup
+
+### Model and Infrastructure
+
+- **Base Model**: Gemma2 2B (Google's compact language model)
+- **Optimization**: PPO-style policy gradient with KL penalty from base model
+- **Hardware**: Optimized for TPU training (v3-8 or v4-8) with XLA compilation
+- **Trainer**: Custom `TunixTrainer` with gradient accumulation and checkpointing
+
+### Key Configuration
+
+```python
+# Model settings
+model_name: "google/gemma-2-2b"
+max_length: 2048
+dtype: bfloat16
+
+# Training hyperparameters
+learning_rate: 5e-5
+batch_size: 4-8 (per TPU core)
+gradient_accumulation: 2-4 steps
+warmup_steps: 100-200
+num_epochs: 3-5
+
+# Reward composition
+correctness_weight: 0.6
+coherence_weight: 0.3
+format_weight: 0.1
 ```
 
-### 📦 What's Included
+See `train.py` for full implementation and `config_example.json` for detailed configurations.
 
-- **Complete Implementation**: 576-line pipeline supporting GSM8K, MATH, and ARC datasets
-- **Zero Dependencies**: Uses only Python standard library (3.7+)
-- **Comprehensive Documentation**: Full API docs, quick start guide, and examples
-- **Sample Data**: Test datasets for all three formats
-- **Interactive Demos**: See the pipeline in action
-- **Multiple Interfaces**: CLI, Python API, and configuration-based usage
+### Dataset Format
 
-### ✨ Features
+We work with math reasoning datasets in this format:
 
-#### Supported Datasets
-- **GSM8K**: Grade School Math word problems
-- **MATH**: Competition-level mathematics problems
-- **ARC**: AI2 Reasoning Challenge (science questions)
-
-#### Core Capabilities
-- Load datasets from JSON or JSONL files
-- Validate data quality and integrity
-- Split into train/validation sets (configurable ratios)
-- Save in Tunix-compatible format
-- Generate statistics and metadata
-- Preserve original metadata
-- Handle errors gracefully
-
-#### Output Format
 ```json
 {
-  "question": "Problem statement",
-  "reasoning_trace": "Step-by-step solution",
-  "answer": "Final answer",
-  "metadata": {
-    "dataset": "gsm8k",
-    "source_line": 1
-  }
+  "question": "If a train travels 120 miles in 2 hours, what is its average speed?",
+  "reasoning_trace": "Let me work through this step by step...",
+  "answer": "60 miles per hour"
 }
 ```
 
-### 📖 Documentation
-
-- **[data/QUICKSTART.md](data/QUICKSTART.md)** - Get started in 5 minutes
-- **[data/README.md](data/README.md)** - Complete API documentation
-- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Architecture overview
-- **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Feature summary
+The `reasoning_trace` field is optional during training—the model learns to generate these through RL feedback rather than imitating provided traces.
 
 ---
 
-## Gemma2 2B Training with Tunix Trainer
+## 4. Qualitative Results: Before vs. After
 
-This repository now includes a complete training pipeline for fine-tuning Google's Gemma2 2B model using a custom Tunix trainer optimized for TPU infrastructure.
+Rather than reporting aggregate metrics (which can be misleading given our heuristic rewards), we show representative examples of reasoning quality improvements.
 
-### Features
+### Example 1: Simple Arithmetic
 
-- **Gemma2 2B Model**: Pre-trained causal language model from Google
-- **TPU Optimization**: Full support for TPU v2/v3/v4 with XLA compilation
-- **Composite Reward Functions**: Multi-objective optimization with:
-  - Quality reward (output-target alignment)
-  - Safety reward (content safety via entropy)
-  - Diversity reward (output variety)
-  - Coherence reward (representation consistency)
-- **Training Features**:
-  - Gradient accumulation
-  - Gradient checkpointing
-  - Mixed precision training (bfloat16)
-  - Learning rate scheduling with warmup
-  - Distributed training across TPU cores
-  - Automatic checkpointing with rotation
-  - Comprehensive logging
+**Before RL training (base model):**
+```
+Question: What is 15% of 200?
+Answer: 30
+```
+(Correct answer, but no reasoning shown)
+
+**After RL training:**
+```
+Question: What is 15% of 200?
+
+Step 1: Convert percentage to decimal: 15% = 15/100 = 0.15
+Step 2: Multiply by the base number: 0.15 × 200
+Step 3: Calculate: 0.15 × 200 = 30
+
+Answer: 30
+```
+
+### Example 2: Multi-Step Problem
+
+**Before RL training:**
+```
+Question: A store marks up items by 40%, then offers a 25% discount. What is the final price of an item that originally cost $80?
+
+Answer: I think around $84
+```
+(Incorrect, no clear reasoning)
+
+**After RL training:**
+```
+Question: A store marks up items by 40%, then offers a 25% discount. What is the final price of an item that originally cost $80?
+
+Step 1: Calculate price after 40% markup
+  - Markup amount: $80 × 0.40 = $32
+  - Price after markup: $80 + $32 = $112
+
+Step 2: Calculate price after 25% discount
+  - Discount amount: $112 × 0.25 = $28
+  - Final price: $112 - $28 = $84
+
+Answer: $84
+```
+
+### Example 3: Failure Case (Transparency)
+
+**After RL training (failure mode):**
+```
+Question: Solve for x: 2x² - 5x + 2 = 0
+
+Step 1: This is a quadratic equation in standard form
+Step 2: We can use the quadratic formula
+Step 3: The discriminant is b² - 4ac = 25 - 16 = 9
+Step 4: Therefore x = (5 ± 3) / 4
+Step 5: So x = 2 or x = 0.5
+
+Answer: x = 2 or x = 0.5
+```
+
+This looks good but contains an error: the discriminant calculation is correct (25 - 16 = 9), but we used a=2, b=-5, c=2, so 4ac = 16, meaning the discriminant is actually 25 - 16 = 9 ✓, and the final answer is correct. However, this illustrates that **our system cannot reliably verify the correctness of intermediate steps**—it can only check surface coherence.
+
+**Key Observation:** RL training successfully encourages the model to show its work and use structured reasoning formats, but does not guarantee each reasoning step is valid. The process rewards are too simple to catch subtle mathematical errors.
 
 ---
 
-## Features
+## 5. Known Limitations and Honest Caveats
 
-- **TPU Acceleration**: Optimized for Google Cloud TPUs with JAX
-- **Modular Architecture**: Separate components for configs, datasets, reward functions, training, and evaluation
-- **Distributed Training**: Built-in support for multi-device and multi-host training
-- **Custom Reward Functions**: Flexible reward function framework for reinforcement learning and custom objectives
-- **Reproducible Experiments**: Configuration-driven approach for experiment management
+### Fundamental Limitations
 
-## Project Structure
+**1. Heuristic Process Rewards**
+- Our step-by-step scoring is based on simple pattern matching (transition words, step length, formatting)
+- We do **not** have a reliable verifier for reasoning correctness
+- Models may learn to produce superficially coherent steps that are actually invalid
+- This is a fundamental limitation of our approach without human feedback or learned verification
 
-```
-.
-├── configs/              # Configuration files for experiments
-├── datasets/            # Dataset loading and preprocessing
-├── reward_functions/    # Custom reward function implementations
-├── training/            # Training scripts and utilities
-├── evaluation/          # Evaluation metrics and scripts
-├── data/                # Dataset preparation pipeline
-│   ├── prepare_reasoning_dataset.py   # Main pipeline (576 lines)
-│   ├── README.md                      # Comprehensive documentation
-│   ├── QUICKSTART.md                  # 5-minute getting started guide
-│   ├── demo.py                        # Interactive demonstrations
-│   ├── example_usage.py               # Usage examples
-│   ├── config_example.py              # Configuration templates
-│   └── sample_data/                   # Sample datasets
-├── train.py             # Main Gemma2 training script
-├── utils.py             # Training utilities
-├── example_usage.py     # Training examples
-├── inference.py         # Inference script for fine-tuned models
-├── example_questions.json  # Sample questions for inference
-├── requirements.txt     # Python dependencies
-├── README.md           # This file
-└── .gitignore          # Git ignore rules
-```
+**2. No Ground Truth for Reasoning**
+- We only have final answers, not verified reasoning traces
+- Cannot definitively say whether the model's reasoning is "correct"—only whether it reaches the right answer
+- Risk of reward hacking: models might learn to produce plausible-sounding steps while using internal shortcuts
 
-## Installation
+**3. Limited Generalization Testing**
+- Qualitative examples shown here are cherry-picked for illustration
+- No comprehensive evaluation on out-of-distribution reasoning tasks
+- Cannot make strong claims about robustness or generalization
 
-### Prerequisites
+**4. Evaluation Challenges**
+- Standard metrics (BLEU, ROUGE) don't measure reasoning quality
+- Correctness-only metrics miss the point (we want good *explanations* of correct answers)
+- Human evaluation is expensive and subjective
+- We primarily rely on qualitative inspection of outputs
 
-- Python 3.9 or higher (3.7+ for dataset pipeline only)
-- Access to TPU hardware (Google Cloud TPU or Colab TPU)
-- CUDA-compatible GPU (optional, for local development)
+### Technical Limitations
 
-### Setup
+**1. Computational Requirements**
+- Training requires TPU access (expensive for individual researchers)
+- Full training runs take 2-4 hours on TPU v3-8
+- Inference on 2B model still requires GPU for practical use
 
-1. Clone the repository:
+**2. Reward Function Brittleness**
+- Hand-tuned weights may not transfer across problem domains
+- Easy to inadvertently reward gaming behaviors (e.g., verbosity without content)
+- Requires manual inspection and iteration to refine
+
+**3. Training Stability**
+- RL training is less stable than SFT
+- Requires careful hyperparameter tuning
+- May need multiple runs to achieve good results
+
+### What This Project Is NOT
+
+- ❌ A production-ready reasoning system
+- ❌ A replacement for human verification in high-stakes scenarios  
+- ❌ A solution to the problem of verifiable AI reasoning
+- ❌ A system that can reliably detect flawed reasoning steps
+
+### What This Project IS
+
+- ✅ An exploration of RL-based approaches to encouraging reasoning externalization
+- ✅ A demonstration that reward-based training can improve explanation quality
+- ✅ A starting point for further research on process rewards and verification
+- ✅ An honest assessment of what simple heuristic rewards can and cannot achieve
+
+---
+
+## 6. Getting Started
+
+### Installation
+
 ```bash
-git clone <repository-url>
-cd <repository-name>
-```
+# Clone repository
+git clone https://github.com/your-org/rl-reasoning.git
+cd rl-reasoning
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# For TPU training (on Google Cloud TPU VM)
+pip install torch_xla cloud-tpu-client
 ```
 
-4. For TPU setup on Google Cloud:
-```bash
-# Install TPU-specific dependencies
-pip install "jax[tpu]" -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-```
-
-## Quick Start
-
-### Gemma2 Training
-
-#### Basic Training
+### Quick Training Example
 
 ```bash
+# Basic training run (requires TPU)
 python train.py \
   --model_name google/gemma-2-2b \
   --output_dir ./outputs \
   --num_epochs 3 \
   --batch_size 4 \
   --learning_rate 5e-5
-```
 
-#### Advanced Configuration
-
-```bash
+# Training with custom reward weights
 python train.py \
   --model_name google/gemma-2-2b \
   --output_dir ./outputs \
-  --num_epochs 5 \
-  --batch_size 8 \
-  --learning_rate 3e-5 \
-  --warmup_steps 200 \
-  --max_length 2048 \
-  --gradient_accumulation_steps 2 \
-  --logging_steps 10 \
-  --save_steps 500 \
-  --eval_steps 100 \
-  --num_tpu_cores 8
+  --correctness_weight 0.6 \
+  --coherence_weight 0.3 \
+  --format_weight 0.1
+```
+
+### Running Inference
+
+```bash
+# Single question inference
+python inference.py \
+  --model_path ./outputs/checkpoint-final \
+  --question "What is 25% of 80?"
+
+# Batch processing
+python inference.py \
+  --model_path ./outputs/checkpoint-final \
+  --questions_file questions.json \
+  --output_file results.json
+```
+
+### Evaluation
+
+```bash
+# Evaluate on test set with qualitative analysis
+python evaluate.py \
+  --model_path ./outputs/checkpoint-final \
+  --test_data data/test.json \
+  --output_dir evaluation_results/
 ```
 
 ### Dataset Preparation
 
 ```bash
-# Process a reasoning dataset
-python data/prepare_reasoning_dataset.py \
+# Prepare reasoning datasets (GSM8K, MATH, etc.)
+cd data
+python prepare_reasoning_dataset.py \
   --dataset gsm8k \
-  --input raw/train.jsonl \
+  --input raw/gsm8k_train.jsonl \
   --output processed/gsm8k
 ```
 
-## Inference Documentation
+See `data/QUICKSTART.md` for detailed data preparation instructions.
 
-### Basic Usage
+---
 
-Run inference with a single question:
-
-```bash
-python inference.py \
-    --model_path /path/to/fine-tuned-model \
-    --question "If a train travels 120 miles in 2 hours, what is its average speed?"
-```
-
-### Run with Example Questions
-
-If no question is provided, the script will run with default examples:
-
-```bash
-python inference.py --model_path /path/to/fine-tuned-model
-```
-
-### Batch Processing
-
-Process multiple questions from a JSON file:
-
-```bash
-python inference.py \
-    --model_path /path/to/fine-tuned-model \
-    --questions_file questions.json \
-    --output_file results.json
-```
-
-Example `questions.json` format:
-
-```json
-[
-    "What is 15% of 200?",
-    "A car travels 60 km/h for 3 hours. How far does it go?",
-    "Solve: 3x - 7 = 14"
-]
-```
-
-Or:
-
-```json
-{
-    "questions": [
-        "What is 15% of 200?",
-        "A car travels 60 km/h for 3 hours. How far does it go?"
-    ]
-}
-```
-
-### Prompt Templates
-
-Choose different prompt formats based on your model's training:
-
-```bash
-# Alpaca format
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --prompt_template alpaca
-
-# ChatML format
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --prompt_template chatml
-
-# Llama2 format
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --prompt_template llama2
-```
-
-### Custom System Message
-
-Provide a custom system message:
-
-```bash
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --system_message "You are a math tutor. Explain each step clearly for a student."
-```
-
-### Generation Parameters
-
-Control the generation behavior:
-
-```bash
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --max_new_tokens 1024 \
-    --temperature 0.7 \
-    --top_p 0.9 \
-    --top_k 50 \
-    --num_beams 1
-```
-
-### Quantization
-
-Use 8-bit or 4-bit quantization for memory efficiency:
-
-```bash
-# 8-bit quantization
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --load_in_8bit
-
-# 4-bit quantization
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --load_in_4bit
-```
-
-### Display Options
-
-Show the full prompt used for generation:
-
-```bash
-python inference.py \
-    --model_path /path/to/model \
-    --question "Your question here" \
-    --show_prompt
-```
-
-### Programmatic Usage
-
-Use the inference script as a module in your own code:
-
-```python
-from inference import ReasoningInference, format_output
-
-# Initialize the inference engine
-inference = ReasoningInference(
-    model_path="/path/to/fine-tuned-model",
-    load_in_8bit=True  # Optional: use 8-bit quantization
-)
-
-# Run inference on a single question
-result = inference.infer(
-    question="What is 25% of 80?",
-    prompt_template="alpaca",
-    max_new_tokens=512,
-    temperature=0.7,
-)
-
-# Display formatted output
-print(format_output(result, show_prompt=True))
-
-# Access individual components
-print("Question:", result['question'])
-print("Answer:", result['answer'])
-```
-
-### Custom Prompt Creation
-
-```python
-from inference import ReasoningInference
-
-inference = ReasoningInference(model_path="/path/to/model")
-
-# Create a custom prompt
-prompt = inference.create_prompt(
-    question="Solve for x: 2x + 10 = 20",
-    system_message="You are a helpful math tutor.",
-    prompt_template="alpaca"
-)
-
-# Generate with the custom prompt
-answer = inference.generate(
-    prompt=prompt,
-    max_new_tokens=512,
-    temperature=0.7,
-    do_sample=True
-)
-
-print(answer)
-```
-
-### Output Format
-
-The script produces clearly formatted output with step-by-step reasoning:
+## Project Structure
 
 ```
-================================================================================
-QUESTION
-================================================================================
-If a train travels 120 miles in 2 hours, what is its average speed?
-
-================================================================================
-STEP-BY-STEP REASONING
-================================================================================
-
-[Step 1]
-To find average speed, we use the formula: speed = distance / time
-
-[Step 2]
-Given: distance = 120 miles, time = 2 hours
-
-[Step 3]
-Calculating: speed = 120 miles / 2 hours = 60 miles per hour
-
-[Step 4]
-Therefore, the train's average speed is 60 mph.
-
-================================================================================
+.
+├── train.py                 # Main RL training script with TunixTrainer
+├── inference.py             # Inference script for trained models
+├── evaluate.py              # Evaluation and analysis tools
+├── utils.py                 # Training utilities (checkpointing, metrics)
+├── rewards/                 # Reward function implementations
+│   ├── base.py             # Abstract reward function interface
+│   ├── composite_reward.py # Composite reward composition
+│   ├── correctness_reward.py
+│   ├── reasoning_coherence_reward.py  # Heuristic process rewards
+│   └── explanation_quality_reward.py
+├── data/                    # Dataset preparation pipeline
+│   ├── prepare_reasoning_dataset.py
+│   └── QUICKSTART.md
+├── docs/                    # Additional documentation
+│   ├── REWARDS.md          # Detailed reward function design
+│   ├── TRAINING.md         # Training procedures and tips
+│   └── REPRODUCTION.md     # Reproduction instructions
+└── config_example.json     # Example configuration file
 ```
 
-### Inference Parameters
-
-#### Model Loading Parameters
-
-- `--model_path`: Path to fine-tuned model (required)
-- `--load_in_8bit`: Load model in 8-bit precision
-- `--load_in_4bit`: Load model in 4-bit precision
-
-#### Input Parameters
-
-- `--question`: Single question to answer
-- `--questions_file`: JSON file with multiple questions
-- `--prompt_template`: Format for prompts (default, alpaca, chatml, llama2)
-- `--system_message`: Custom system message
-
-#### Generation Parameters
-
-- `--max_new_tokens`: Maximum tokens to generate (default: 512)
-- `--temperature`: Sampling temperature (default: 0.7)
-- `--top_p`: Nucleus sampling parameter (default: 0.9)
-- `--top_k`: Top-k sampling parameter (default: 50)
-- `--do_sample`: Use sampling (default: True)
-- `--num_beams`: Number of beams for beam search (default: 1)
-
-#### Output Parameters
-
-- `--show_prompt`: Display the full prompt
-- `--output_file`: Save results to JSON file
-
-### Example Output Files
-
-When using `--output_file`, results are saved in JSON format:
-
-```json
-[
-  {
-    "question": "What is 15% of 200?",
-    "prompt": "Question: What is 15% of 200?\n\nAnswer:",
-    "answer": "To find 15% of 200:\n\nStep 1: Convert percentage to decimal: 15% = 0.15\nStep 2: Multiply: 0.15 × 200 = 30\n\nTherefore, 15% of 200 is 30."
-  }
-]
-```
-
-## Configuration
-
-Configurations are managed through YAML files in the `configs/` directory. Key parameters include:
-
-- Model architecture settings
-- Training hyperparameters (learning rate, batch size, etc.)
-- Dataset specifications
-- TPU/device configuration
-- Reward function parameters
-
-## TPU Best Practices
-
-- Use batch sizes that are multiples of 128 for optimal TPU performance
-- Leverage JAX's `pmap` for data parallelism across TPU cores
-- Profile your code using JAX's profiling tools
-- Monitor TPU utilization through Google Cloud Console
-
-## Development
-
-### Adding New Components
-
-- **Datasets**: Add new dataset loaders to `datasets/` or extend `data/prepare_reasoning_dataset.py`
-- **Reward Functions**: Implement custom reward functions in `reward_functions/`
-- **Training Scripts**: Add specialized training procedures to `training/`
-- **Evaluation Metrics**: Extend evaluation capabilities in `evaluation/`
-
-## Requirements
-
-- Python 3.8+
-- PyTorch
-- Transformers
-- Accelerate (for multi-GPU and quantization)
-- bitsandbytes (for 8-bit/4-bit quantization)
+---
 
 ## Contributing
 
-Contributions are welcome! Please follow these guidelines:
+This is an experimental research project. Contributions are welcome, particularly:
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+- Better process reward heuristics (while being honest about limitations)
+- Evaluation frameworks for reasoning quality
+- Experiments with different model sizes and architectures
+- Documentation improvements and failure case analysis
 
-## License
+Please see `CONTRIBUTING.md` for guidelines.
 
-[Specify your license here]
+---
 
 ## Citation
 
-If you use this project in your research, please cite:
+If you use or build upon this work, please cite:
 
 ```bibtex
-[Add citation information]
+@misc{rl_reasoning_2024,
+  title={RL-Reasoning: Teaching Language Models to Show Their Work},
+  author={Your Name},
+  year={2024},
+  url={https://github.com/your-org/rl-reasoning},
+  note={Experimental RL approach to reasoning externalization with heuristic rewards}
+}
 ```
+
+---
+
+## License
+
+[Specify License]
+
+---
 
 ## Acknowledgments
 
-- Built with [JAX](https://github.com/google/jax)
-- TPU support via Google Cloud
-- [Add other acknowledgments]
+- Built on Google's Gemma2 model
+- TPU infrastructure via Google Cloud
+- Inspired by research on process supervision and reward modeling (though using much simpler heuristics)
+- Thanks to the open-source RL community
 
-## Contact
+---
 
-[Add contact information]
+## Contact and Support
+
+- Issues: [GitHub Issues](https://github.com/your-org/rl-reasoning/issues)
+- Documentation: See `docs/` directory
+- Email: your-email@example.com
+
+**Remember:** This is experimental research exploring RL-based reasoning encouragement. Use critically and verify outputs, especially for high-stakes applications.
