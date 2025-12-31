@@ -1,4 +1,8 @@
 {
+  "_DEPRECATED": "This configuration file is for the old batch_evaluate.py script which has been removed.",
+  "_NOTE": "See samples.md for the current evaluation methodology.",
+  "_ALTERNATIVE": "Use inference.py to generate outputs from each model checkpoint and manually compare.",
+  
   "global_config": {
     "benchmarks": ["gsm8k", "math", "arc", "mmlu"],
     "batch_size": 4,

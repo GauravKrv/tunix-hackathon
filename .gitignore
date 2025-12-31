@@ -1,8 +1,11 @@
-# Python virtual environment
+# Private documentation - not for version control
+PRIVATE_TECHNICAL_AUDIT.md
+
+# Python virtual environments
 .venv/
 venv/
-ENV/
 env/
+ENV/
 
 # Python cache and compiled files
 __pycache__/
@@ -42,14 +45,19 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.pytest_cache/
 nosetests.xml
 coverage.xml
 *.cover
-*.log
-.pytest_cache/
+*.py,cover
+.hypothesis/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
 
 # pyenv
 .python-version
@@ -62,8 +70,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.env.local
 
-# IDE
+# IDEs
 .vscode/
 .idea/
 *.swp
@@ -71,8 +80,57 @@ venv.bak/
 *.swn
 *.bak
 *~
+.DS_Store
 
-# OS
+# Model outputs and checkpoints
+outputs/
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.h5
+*.pb
+*.safetensors
+wandb/
+.wandb/
+tensorboard_logs/
+tb_logs/
+
+# Logs
+logs/
+*.log
+
+# Temporary requirements files (created during setup)
+requirements_fixed.txt
+requirements_base.txt
+requirements_minimal.txt
+requirements-minimal.txt
+
+# Model files
+models/
+*.bin
+
+# Data files
+data/*.csv
+data/*.json
+data/*.pkl
+data/raw/
+data/processed/
+datasets/
+datasets/cache/
+!data/example_*.json
+*.hdf5
+
+# Evaluation results
+results/
+evaluation_results/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -81,27 +139,14 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-outputs/
-logs/
-checkpoints/
-*.ckpt
-*.pth
-*.safetensors
-wandb/
-.wandb/
+# macOS
+.AppleDouble
+.LSOverride
 
-# Temporary requirements files (created during setup)
-requirements_fixed.txt
-requirements_base.txt
-requirements_minimal.txt
+# Tensorboard
+events.out.tfevents.*
 
-# Model files
-models/
-*.bin
-*.h5
-
-# Data
-data/*.json
-data/*.csv
-!data/example_*.json
+# Compiled files
+*.pyc
+*.pyo
+*.pyd
