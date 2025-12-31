@@ -1,0 +1,290 @@
+--- Sample 1 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+D, F are ON; A, C are OFF; B, E are UNKNOWN.
+
+Constraints (Invariants):
+- If B is ON, then E must be ON.
+- If C is ON, then F must be ON.
+
+Operations (executed sequentially):
+1. If D is ON, set B to OFF.
+2. If F is ON, set A to ON.
+3. Flip B.
+4. Set E to ON.
+5. Set E to ON.
+6. If F is ON, set C to ON.
+7. Flip F.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 2 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+A are ON; C, D, F are OFF; B, E are UNKNOWN.
+
+Constraints (Invariants):
+- E and A cannot both be ON.
+- If D is ON, then F must be ON.
+
+Operations (executed sequentially):
+1. If D is OFF, set E to OFF.
+2. Set D to OFF.
+3. If D is ON, set C to ON.
+4. If B is OFF, set A to OFF.
+5. If C is OFF, set E to ON.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 3 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+B, C, F are ON; A, D, E are UNKNOWN.
+
+Constraints (Invariants):
+- If F is ON, then E must be ON.
+- B and C cannot both be ON.
+- If F is ON, then E must be ON.
+- E and A cannot both be ON.
+
+Operations (executed sequentially):
+1. If B is ON, set A to ON.
+2. If F is ON, set E to OFF.
+3. Set E to OFF.
+4. Flip E.
+5. Flip C.
+6. Set A to OFF.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: Yes
+
+--- Sample 4 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+A, C, D are ON; E are OFF; B, F are UNKNOWN.
+
+Constraints (Invariants):
+- If E is ON, then B must be ON.
+- If B is ON, then F must be ON.
+- If C is ON, then D must be ON.
+
+Operations (executed sequentially):
+1. If D is OFF, set A to OFF.
+2. If B is OFF, set E to OFF.
+3. If D is ON, set B to OFF.
+4. Flip F.
+5. Set F to ON.
+6. If F is ON, set E to ON.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 5 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+B, C, D, E are OFF; A, F are UNKNOWN.
+
+Constraints (Invariants):
+- If F is ON, then D must be ON.
+- If F is ON, then A must be ON.
+- If C is ON, then B must be ON.
+- If B is ON, then F must be ON.
+
+Operations (executed sequentially):
+1. If A is OFF, set F to ON.
+2. If E is OFF, set A to OFF.
+3. If C is ON, set A to ON.
+4. Set A to OFF.
+5. If E is OFF, set F to OFF.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: Yes
+
+--- Sample 6 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+A, C are ON; D are OFF; B, E, F are UNKNOWN.
+
+Constraints (Invariants):
+- A and D cannot both be ON.
+- If E is ON, then A must be ON.
+
+Operations (executed sequentially):
+1. Set E to OFF.
+2. If D is OFF, set F to ON.
+3. Set C to OFF.
+4. Set E to OFF.
+5. If A is ON, set D to ON.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 7 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+C, E are ON; A are OFF; B, D, F are UNKNOWN.
+
+Constraints (Invariants):
+- D and F cannot both be ON.
+- E and B cannot both be ON.
+
+Operations (executed sequentially):
+1. Set F to OFF.
+2. If E is OFF, set C to OFF.
+3. If C is ON, set B to OFF.
+4. If D is ON, set A to OFF.
+5. If F is OFF, set D to ON.
+6. Set F to OFF.
+7. Flip F.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 8 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+A are ON; B, E, F are OFF; C, D are UNKNOWN.
+
+Constraints (Invariants):
+- B and C cannot both be ON.
+- A and F cannot both be ON.
+
+Operations (executed sequentially):
+1. If A is ON, set C to OFF.
+2. Flip B.
+3. Flip B.
+4. Set D to ON.
+5. Flip C.
+6. If F is OFF, set E to ON.
+7. Set D to ON.
+8. If A is ON, set B to ON.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 9 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+B, E are ON; F are OFF; A, C, D are UNKNOWN.
+
+Constraints (Invariants):
+- If B is ON, then D must be ON.
+- If E is ON, then A must be ON.
+- If D is ON, then A must be ON.
+
+Operations (executed sequentially):
+1. Flip A.
+2. Set D to ON.
+3. If E is ON, set C to ON.
+4. If A is ON, set B to OFF.
+5. If D is ON, set A to ON.
+6. If C is ON, set D to OFF.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
+--- Sample 10 ---
+You are a logic state machine verifier.
+variables: A, B, C, D, E, F
+
+Initial State:
+F are ON; A, B, E are OFF; C, D are UNKNOWN.
+
+Constraints (Invariants):
+- F and D cannot both be ON.
+- If E is ON, then A must be ON.
+- If E is ON, then A must be ON.
+
+Operations (executed sequentially):
+1. If A is OFF, set D to ON.
+2. Set D to OFF.
+3. If B is OFF, set E to ON.
+4. Flip A.
+5. Set D to OFF.
+6. Flip F.
+7. If A is ON, set F to OFF.
+8. Flip A.
+
+Instruction:
+You must track variable states across multiple steps and constraints.
+Skipping steps or jumping to conclusions will lead to incorrect answers.
+
+Question:
+Is the final state valid?
+Answer "Yes" or "No".
+Expected Answer: No
+
