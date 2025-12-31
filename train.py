@@ -110,6 +110,8 @@ class TunixConfig:
     tpu: TPUConfig = field(default_factory=TPUConfig)
     reward: RewardConfig = field(default_factory=RewardConfig)
     grpo: GRPOConfig = field(default_factory=GRPOConfig)
+    data_path: str = "dataset_output_final/train.jsonl"
+    val_data_path: str = "dataset_output_final/val.jsonl"
 
 
 class CompositeRewardFunction:
@@ -234,16 +236,25 @@ class ReasoningDataset(Dataset):
         self.data = self._load_data(data_path)
     
     def _load_data(self, data_path: str) -> List[Dict[str, str]]:
-        """Load data from jsonl file with question and answer fields."""
+        """Load data from jsonl file with prompt/answer or question/answer fields."""
         data = []
         with open(data_path, 'r', encoding='utf-8') as f:
             for line in f:
                 item = json.loads(line.strip())
-                # Only load question and answer - no reasoning_trace
-                if 'question' in item and 'answer' in item:
+                # Support both 'prompt'/'answer' and 'question'/'answer' formats
+                if 'prompt' in item and 'answer' in item:
+                    # Use prompt directly (already formatted)
+                    data.append({
+                        'prompt': item['prompt'],
+                        'answer': item['answer'],
+                        'has_prompt': True
+                    })
+                elif 'question' in item and 'answer' in item:
+                    # Create prompt from question
                     data.append({
                         'question': item['question'],
-                        'answer': item['answer']
+                        'answer': item['answer'],
+                        'has_prompt': False
                     })
         return data
     
@@ -265,11 +276,14 @@ class ReasoningDataset(Dataset):
     
     def __getitem__(self, idx):
         item = self.data[idx]
-        question = item['question']
         answer = item['answer']
         
-        # Create prompt with explicit reasoning instruction
-        prompt = self._create_prompt(question)
+        # Use existing prompt if available, otherwise create from question
+        if item.get('has_prompt', False):
+            prompt = item['prompt']
+        else:
+            question = item['question']
+            prompt = self._create_prompt(question)
         
         # Full text includes prompt + answer (model will generate reasoning between them)
         full_text = prompt + answer
@@ -1117,19 +1131,33 @@ def _mp_fn(index: int, config: TunixConfig):
     
     model, tokenizer = load_model_and_tokenizer(config.model)
     
-    train_dataset = DummyDataset(
+    # Use the data_path from config if available, otherwise use default
+    data_path = getattr(config, 'data_path', 'dataset_output_final/train.jsonl')
+    
+    logger.info(f"Loading training data from: {data_path}")
+    
+    train_dataset = ReasoningDataset(
+        data_path=data_path,
         tokenizer=tokenizer,
-        num_samples=10000,
         max_length=config.model.max_length,
-        return_prompts_only=config.training.use_grpo,
     )
     
-    eval_dataset = DummyDataset(
-        tokenizer=tokenizer,
-        num_samples=1000,
-        max_length=config.model.max_length,
-        return_prompts_only=False,
-    )
+    logger.info(f"Loaded {len(train_dataset)} training samples")
+    
+    # Load validation dataset
+    val_data_path = getattr(config, 'val_data_path', 'dataset_output_final/val.jsonl')
+    
+    if val_data_path and os.path.exists(val_data_path):
+        logger.info(f"Loading validation data from: {val_data_path}")
+        eval_dataset = ReasoningDataset(
+            data_path=val_data_path,
+            tokenizer=tokenizer,
+            max_length=config.model.max_length,
+        )
+        logger.info(f"Loaded {len(eval_dataset)} validation samples")
+    else:
+        logger.info("No validation data found, skipping evaluation")
+        eval_dataset = None
     
     trainer = TunixTrainer(
         model=model,
@@ -1246,6 +1274,18 @@ def parse_args():
         default=256,
         help="Maximum length for generated completions in GRPO",
     )
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default="dataset_output_final/train.jsonl",
+        help="Path to training data file (JSONL format with prompt/answer or question/answer fields)",
+    )
+    parser.add_argument(
+        "--val_data_path",
+        type=str,
+        default="dataset_output_final/val.jsonl",
+        help="Path to validation data file (JSONL format with prompt/answer or question/answer fields)",
+    )
     
     return parser.parse_args()
 
@@ -1280,6 +1320,8 @@ def main():
             num_completions_per_prompt=args.num_completions_per_prompt,
             generation_max_length=args.generation_max_length,
         ),
+        data_path=args.data_path,
+        val_data_path=args.val_data_path,
     )
     
     os.makedirs(config.training.output_dir, exist_ok=True)
@@ -1290,6 +1332,8 @@ def main():
         'tpu': vars(config.tpu),
         'reward': vars(config.reward),
         'grpo': vars(config.grpo),
+        'data_path': config.data_path,
+        'val_data_path': config.val_data_path,
     }
     
     with open(Path(config.training.output_dir) / "config.json", 'w') as f:
