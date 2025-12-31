@@ -1,0 +1,39 @@
+{
+  "_DEPRECATED": "This configuration file is for the old batch_evaluate.py script which has been removed.",
+  "_NOTE": "See samples.md for the current evaluation methodology.",
+  "_ALTERNATIVE": "Use inference.py to generate outputs from each model checkpoint and manually compare.",
+  
+  "global_config": {
+    "benchmarks": ["gsm8k", "math", "arc", "mmlu"],
+    "batch_size": 4,
+    "temperature": 0.7,
+    "device": "cuda",
+    "seed": 42
+  },
+  "evaluations": [
+    {
+      "name": "baseline_eval",
+      "base_model_path": "path/to/base/model",
+      "finetuned_model_path": null,
+      "num_samples": 100
+    },
+    {
+      "name": "checkpoint_1000",
+      "base_model_path": "path/to/base/model",
+      "finetuned_model_path": "path/to/checkpoint-1000",
+      "num_samples": 100
+    },
+    {
+      "name": "checkpoint_2000",
+      "base_model_path": "path/to/base/model",
+      "finetuned_model_path": "path/to/checkpoint-2000",
+      "num_samples": 100
+    },
+    {
+      "name": "final_model",
+      "base_model_path": "path/to/base/model",
+      "finetuned_model_path": "path/to/final/model",
+      "num_samples": null
+    }
+  ]
+}

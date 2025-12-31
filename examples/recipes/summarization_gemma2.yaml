@@ -1,0 +1,144 @@
+# Summarization Dataset Recipe: Gemma2 2B
+# Optimized for summarization tasks (TL;DR, etc.)
+
+# Import base configurations
+includes:
+  - ../configs/models/gemma2_2b.yaml
+  - ../configs/datasets/summarization.yaml
+  - ../configs/rewards/rule_based_hybrid.yaml
+
+# Override dataset settings for summarization
+dataset:
+  preprocessing:
+    max_length: 1024
+    max_summary_length: 256
+  
+  batch_size: 8
+  
+  # Summarization specific filtering
+  filters:
+    min_length: 100
+    max_length: 1024
+    compression_ratio_min: 3.0
+    compression_ratio_max: 15.0
+
+# Override reward settings - focus on summarization quality
+reward:
+  learned:
+    weight: 0.5
+  
+  rules:
+    - name: "length_penalty"
+      weight: 0.2
+      params:
+        target_length: 128
+        min_length: 30
+        max_length: 300
+    
+    - name: "compression_reward"
+      enabled: true
+      weight: 0.2
+      type: "compression"
+      params:
+        target_ratio: 5.0
+        min_ratio: 2.0
+        max_ratio: 20.0
+    
+    - name: "extractiveness_penalty"
+      enabled: true
+      weight: 0.1
+      type: "extractiveness"
+      params:
+        max_copied_ngrams: 5
+        ngram_size: 4
+        penalty_per_copy: -0.5
+
+# Training configuration
+training:
+  algorithm: "ppo"
+  
+  # Training hyperparameters
+  num_epochs: 3
+  steps_per_epoch: 1000
+  learning_rate: 8e-6
+  warmup_steps: 100
+  
+  # PPO specific
+  ppo:
+    num_ppo_epochs: 4
+    mini_batch_size: 2
+    gradient_accumulation_steps: 4
+    ppo_clip_range: 0.2
+    value_clip_range: 0.2
+    kl_penalty: "kl"
+    target_kl: 0.08
+    gamma: 1.0
+    lam: 0.95
+    vf_coef: 0.1
+    entropy_coef: 0.005
+  
+  # Optimization
+  optimizer:
+    type: "adamw"
+    betas: [0.9, 0.999]
+    eps: 1e-8
+    weight_decay: 0.01
+  
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine"
+    num_cycles: 0.5
+    warmup_ratio: 0.1
+  
+  # Generation during training - shorter for summaries
+  generation:
+    max_new_tokens: 256
+    temperature: 0.7
+    top_p: 0.9
+    do_sample: true
+    repetition_penalty: 1.2  # Avoid repetition in summaries
+  
+  # Logging
+  logging:
+    log_interval: 10
+    eval_interval: 100
+    save_interval: 500
+    log_dir: "logs/summarization_gemma2"
+    
+  # Evaluation
+  evaluation:
+    num_samples: 200
+    metrics: ["reward", "kl", "length", "perplexity", "rouge1", "rouge2", "rougeL"]
+    
+  # Checkpointing
+  checkpointing:
+    save_dir: "checkpoints/summarization_gemma2"
+    save_total_limit: 3
+    save_best: true
+    metric_for_best_model: "rougeL"
+    greater_is_better: true
+
+# Hardware configuration
+hardware:
+  device: "cuda"
+  mixed_precision: "bf16"
+  gradient_checkpointing: true
+  
+  distributed:
+    enabled: false
+    backend: "nccl"
+  
+  memory:
+    max_memory_per_gpu: null
+    cpu_offload: false
+
+# Experiment tracking
+tracking:
+  enabled: true
+  backend: "wandb"
+  project_name: "rlhf-training"
+  run_name: "summarization_gemma2"
+  tags: ["gemma2", "2b", "summarization", "tldr", "ppo"]
+
+# Misc
+seed: 42

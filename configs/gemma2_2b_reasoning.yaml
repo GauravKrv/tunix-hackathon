@@ -1,0 +1,173 @@
+# Tunix Training Configuration for Gemma2 2B Reasoning Model
+# Configuration for training with TPU setup and reward function composition
+
+# Model Configuration
+model:
+  name: "gemma2_2b_reasoning"
+  path: "google/gemma-2-2b"
+  architecture: "gemma2"
+  precision: "bfloat16"
+  vocab_size: 256000
+  max_sequence_length: 8192
+  
+# TPU Configuration
+accelerator:
+  type: "tpu"
+  topology: "v4-8"  # 8 TPU cores
+  num_chips: 8
+  runtime: "pjrt"
+  mesh_shape: [1, 4, 2]  # [data, fsdp, tensor]
+  
+# Hardware Settings
+hardware:
+  tpu_zone: "us-central2-b"
+  device_count: 8
+  mesh_axis_names: ["data", "fsdp", "tensor"]
+  
+# Training Hyperparameters
+training:
+  # Learning Rate Configuration
+  learning_rate: 5.0e-6
+  lr_scheduler: "cosine_with_warmup"
+  warmup_steps: 500
+  min_learning_rate: 5.0e-7
+  
+  # Batch Configuration
+  batch_size: 16  # per device
+  global_batch_size: 128  # 16 * 8 devices
+  gradient_accumulation_steps: 1
+  
+  # Training Duration
+  num_epochs: 3
+  max_steps: 10000
+  eval_steps: 500
+  save_steps: 1000
+  logging_steps: 10
+  
+  # Optimization
+  optimizer: "adamw"
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-8
+  max_grad_norm: 1.0
+  
+  # Mixed Precision
+  mixed_precision: true
+  fp16: false
+  bf16: true
+  
+# Reward Function Composition
+reward:
+  enabled: true
+  composition:
+    # Correctness reward (primary)
+    - name: "correctness"
+      weight: 0.6
+      type: "binary"
+      config:
+        threshold: 0.9
+    
+    # Reasoning quality reward
+    - name: "reasoning_quality"
+      weight: 0.25
+      type: "continuous"
+      config:
+        min_reasoning_steps: 3
+        coherence_weight: 0.7
+        logical_flow_weight: 0.3
+    
+    # Efficiency reward
+    - name: "efficiency"
+      weight: 0.1
+      type: "continuous"
+      config:
+        target_token_length: 512
+        penalty_multiplier: 0.01
+    
+    # Safety reward
+    - name: "safety"
+      weight: 0.05
+      type: "binary"
+      config:
+        toxicity_threshold: 0.1
+        
+  # Reward normalization
+  normalize: true
+  normalization_method: "z_score"
+  clipping: true
+  clip_range: [-10.0, 10.0]
+
+# Dataset Configuration
+data:
+  train_path: "data/train"
+  eval_path: "data/eval"
+  train_split: "train"
+  eval_split: "validation"
+  streaming: false
+  num_workers: 8
+  prefetch_factor: 2
+  
+# Checkpoint Configuration
+checkpoint:
+  # Checkpoint Saving
+  output_dir: "checkpoints/gemma2_2b_reasoning"
+  save_strategy: "steps"
+  save_steps: 1000
+  save_total_limit: 5
+  
+  # Checkpoint Loading
+  resume_from_checkpoint: null
+  load_best_model_at_end: true
+  
+  # Checkpoint Format
+  format: "orbax"
+  async_save: true
+  keep_optimizer_state: true
+  keep_dataset_state: true
+  
+  # Best Model Tracking
+  metric_for_best_model: "eval_reward"
+  greater_is_better: true
+  
+# Evaluation Configuration
+evaluation:
+  strategy: "steps"
+  eval_steps: 500
+  per_device_eval_batch_size: 16
+  prediction_loss_only: false
+  
+# Logging Configuration
+logging:
+  output_dir: "logs/gemma2_2b_reasoning"
+  report_to: ["tensorboard", "wandb"]
+  logging_dir: "logs/tensorboard"
+  logging_steps: 10
+  log_level: "info"
+  
+  # Weights & Biases
+  wandb:
+    project: "tunix-gemma2-reasoning"
+    entity: null
+    tags: ["gemma2", "2b", "reasoning", "tpu"]
+    notes: "Training Gemma2 2B with reasoning reward composition"
+
+# Advanced Settings
+advanced:
+  # Gradient Checkpointing
+  gradient_checkpointing: true
+  gradient_checkpointing_policy: "nothing_saveable"
+  
+  # Compilation
+  jit_compile: true
+  
+  # Seed
+  seed: 42
+  
+  # Distributed Training
+  ddp_timeout: 1800
+  find_unused_parameters: false
+  
+  # Memory Optimization
+  activation_checkpointing: true
+  remat_policy: "minimal"

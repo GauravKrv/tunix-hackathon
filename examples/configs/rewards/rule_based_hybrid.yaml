@@ -1,0 +1,98 @@
+# Hybrid Rule-Based + Learned Reward Configuration
+
+reward:
+  type: "hybrid"
+  
+  # Learned reward component
+  learned:
+    enabled: true
+    weight: 0.6
+    model:
+      name_or_path: "OpenAssistant/reward-model-deberta-v3-large-v2"
+      revision: "main"
+    normalization:
+      enabled: true
+      method: "running_mean_std"
+      clip_min: -10.0
+      clip_max: 10.0
+  
+  # Rule-based components
+  rules:
+    - name: "length_penalty"
+      enabled: true
+      weight: 0.1
+      type: "length"
+      params:
+        target_length: 200
+        penalty_slope: 0.01
+        min_length: 10
+        max_length: 1000
+        penalty_type: "quadratic"  # Options: linear, quadratic, exponential
+    
+    - name: "repetition_penalty"
+      enabled: true
+      weight: 0.1
+      type: "repetition"
+      params:
+        ngram_size: 3
+        max_repetitions: 2
+        penalty_per_repeat: -1.0
+        check_window: 50  # Look back this many tokens
+    
+    - name: "toxicity_penalty"
+      enabled: true
+      weight: 0.1
+      type: "toxicity"
+      params:
+        toxicity_threshold: 0.5
+        penalty_multiplier: -5.0
+        use_perspective_api: false
+        classifier_path: "unitary/toxic-bert"
+    
+    - name: "formatting_reward"
+      enabled: true
+      weight: 0.05
+      type: "formatting"
+      params:
+        reward_complete_sentences: 0.5
+        reward_proper_punctuation: 0.3
+        reward_paragraphs: 0.2
+        penalize_all_caps: -0.5
+        penalize_excessive_punctuation: -0.3
+    
+    - name: "keyword_bonus"
+      enabled: false
+      weight: 0.05
+      type: "keyword"
+      params:
+        positive_keywords: ["helpful", "clear", "accurate"]
+        negative_keywords: ["unsure", "maybe", "probably"]
+        positive_bonus: 0.5
+        negative_penalty: -0.5
+        case_sensitive: false
+  
+  # Aggregation
+  aggregation:
+    method: "weighted_sum"
+    normalize_weights: true
+    
+  # Model settings
+  settings:
+    dtype: "bfloat16"
+    device_map: "auto"
+    max_length: 2048
+    batch_size: 8
+    
+  # Caching
+  cache:
+    enabled: true
+    cache_dir: ".cache/rewards"
+    max_cache_size: 10000
+  
+  # Logging
+  logging:
+    log_distribution: true
+    log_per_component: true
+    log_rule_activations: true
+    log_frequency: 100
+    histogram_bins: 50

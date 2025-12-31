@@ -1,0 +1,116 @@
+# OpenAssistant Dataset Recipe: Gemma3 1B
+# Optimized for OpenAssistant conversational dataset
+
+# Import base configurations
+includes:
+  - ../configs/models/gemma3_1b.yaml
+  - ../configs/datasets/openassistant.yaml
+  - ../configs/rewards/single_reward.yaml
+
+# Override dataset settings for OpenAssistant
+dataset:
+  preprocessing:
+    max_length: 1536
+  
+  conversation:
+    max_turns: 3
+    include_system_prompt: true
+  
+  batch_size: 8
+  
+  # OpenAssistant specific filtering
+  filters:
+    min_length: 10
+    max_length: 1536
+    quality_threshold: 0.6
+    filter_toxic: true
+    filter_pii: true
+
+# Training configuration
+training:
+  algorithm: "ppo"
+  
+  # Training hyperparameters
+  num_epochs: 3
+  steps_per_epoch: 1200
+  learning_rate: 2e-5
+  warmup_steps: 120
+  
+  # PPO specific
+  ppo:
+    num_ppo_epochs: 4
+    mini_batch_size: 2
+    gradient_accumulation_steps: 4
+    ppo_clip_range: 0.2
+    value_clip_range: 0.2
+    kl_penalty: "kl"
+    target_kl: 0.1
+    gamma: 1.0
+    lam: 0.95
+    vf_coef: 0.1
+    entropy_coef: 0.01
+  
+  # Optimization
+  optimizer:
+    type: "adamw"
+    betas: [0.9, 0.999]
+    eps: 1e-8
+    weight_decay: 0.01
+  
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine"
+    num_cycles: 0.5
+    warmup_ratio: 0.1
+  
+  # Generation during training - longer for conversations
+  generation:
+    max_new_tokens: 384
+    temperature: 0.9
+    top_p: 0.9
+    do_sample: true
+  
+  # Logging
+  logging:
+    log_interval: 10
+    eval_interval: 100
+    save_interval: 500
+    log_dir: "logs/openassistant_gemma3"
+    
+  # Evaluation
+  evaluation:
+    num_samples: 150
+    metrics: ["reward", "kl", "length", "perplexity"]
+    
+  # Checkpointing
+  checkpointing:
+    save_dir: "checkpoints/openassistant_gemma3"
+    save_total_limit: 3
+    save_best: true
+    metric_for_best_model: "reward"
+    greater_is_better: true
+
+# Hardware configuration
+hardware:
+  device: "cuda"
+  mixed_precision: "bf16"
+  gradient_checkpointing: true
+  
+  distributed:
+    enabled: false
+    backend: "nccl"
+  
+  memory:
+    max_memory_per_gpu: null
+    cpu_offload: false
+
+# Experiment tracking
+tracking:
+  enabled: true
+  backend: "wandb"
+  project_name: "rlhf-training"
+  run_name: "openassistant_gemma3"
+  tags: ["gemma3", "1b", "openassistant", "conversational", "ppo"]
+
+# Misc
+seed: 42

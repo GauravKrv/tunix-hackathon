@@ -1,0 +1,108 @@
+# Large Batch Training Recipe: Gemma2 2B
+# This recipe uses large batch sizes for more stable training
+
+# Import base configurations
+includes:
+  - ../configs/models/gemma2_2b.yaml
+  - ../configs/datasets/anthropic_hh.yaml
+  - ../configs/rewards/single_reward.yaml
+
+# Training configuration
+training:
+  # Algorithm
+  algorithm: "ppo"
+  
+  # Training hyperparameters
+  num_epochs: 2
+  steps_per_epoch: 800
+  learning_rate: 5e-6
+  warmup_steps: 80
+  
+  # PPO specific - Large batch configuration
+  ppo:
+    num_ppo_epochs: 4
+    mini_batch_size: 1
+    gradient_accumulation_steps: 32  # Large effective batch size
+    ppo_clip_range: 0.2
+    value_clip_range: 0.2
+    kl_penalty: "kl"
+    target_kl: 0.05  # Lower KL for stability
+    gamma: 1.0
+    lam: 0.95
+    vf_coef: 0.1
+    entropy_coef: 0.005  # Lower entropy for stability
+    
+    # Large batch specific
+    normalize_advantages: true
+    clip_value_loss: true
+  
+  # Optimization
+  optimizer:
+    type: "adamw"
+    betas: [0.9, 0.999]
+    eps: 1e-8
+    weight_decay: 0.01
+    max_grad_norm: 0.5  # Gradient clipping
+  
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine"
+    num_cycles: 0.5
+    warmup_ratio: 0.1
+  
+  # Generation during training
+  generation:
+    max_new_tokens: 256
+    temperature: 1.0
+    top_p: 0.9
+    do_sample: true
+  
+  # Logging
+  logging:
+    log_interval: 5
+    eval_interval: 50
+    save_interval: 200
+    log_dir: "logs/gemma2_2b_large_batch"
+    
+  # Evaluation
+  evaluation:
+    num_samples: 100
+    metrics: ["reward", "kl", "length", "perplexity"]
+    
+  # Checkpointing
+  checkpointing:
+    save_dir: "checkpoints/gemma2_2b_large_batch"
+    save_total_limit: 3
+    save_best: true
+    metric_for_best_model: "reward"
+    greater_is_better: true
+
+# Hardware configuration
+hardware:
+  device: "cuda"
+  mixed_precision: "bf16"
+  gradient_checkpointing: true
+  
+  # Multi-GPU - Required for large batch
+  distributed:
+    enabled: true
+    backend: "nccl"
+    find_unused_parameters: false
+    world_size: 4
+    gradient_as_bucket_view: true
+  
+  # Memory optimization
+  memory:
+    max_memory_per_gpu: null
+    cpu_offload: false
+
+# Experiment tracking
+tracking:
+  enabled: true
+  backend: "wandb"
+  project_name: "rlhf-training"
+  run_name: "gemma2_2b_large_batch"
+  tags: ["gemma2", "2b", "large_batch", "ppo", "stable"]
+
+# Misc
+seed: 42

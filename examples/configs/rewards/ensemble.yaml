@@ -1,0 +1,67 @@
+# Ensemble Reward Model Configuration
+
+reward:
+  type: "ensemble"
+  
+  # Ensemble members
+  models:
+    - name: "reward_model_1"
+      model:
+        name_or_path: "OpenAssistant/reward-model-deberta-v3-large-v2"
+        revision: "main"
+      weight: 1.0
+      
+    - name: "reward_model_2"
+      model:
+        name_or_path: "OpenAssistant/reward-model-deberta-v3-base"
+        revision: "main"
+      weight: 0.8
+      
+    - name: "reward_model_3"
+      model:
+        name_or_path: "weqweasdas/hh_rlhf_rm_open_llama_3b"
+        revision: "main"
+      weight: 0.6
+  
+  # Ensemble strategy
+  ensemble:
+    method: "weighted_average"  # Options: weighted_average, voting, stacking, boosting
+    normalize_weights: true
+    
+    # Uncertainty quantification
+    compute_uncertainty: true
+    uncertainty_method: "variance"  # Options: variance, entropy, disagreement
+    
+    # Consensus filtering
+    require_consensus: false
+    consensus_threshold: 0.7
+    disagreement_penalty: 0.1
+  
+  # Model settings
+  settings:
+    dtype: "bfloat16"
+    device_map: "auto"
+    max_length: 2048
+    batch_size: 8
+    
+  # Normalization (applied per model)
+  normalization:
+    enabled: true
+    method: "running_mean_std"
+    clip_min: -10.0
+    clip_max: 10.0
+  
+  # Caching
+  cache:
+    enabled: true
+    cache_dir: ".cache/rewards"
+    max_cache_size: 10000
+  
+  # Logging
+  logging:
+    log_distribution: true
+    log_per_model: true
+    log_uncertainty: true
+    log_disagreement: true
+    log_frequency: 100
+    histogram_bins: 50

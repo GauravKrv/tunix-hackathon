@@ -1,0 +1,106 @@
+# Multi-Objective Reward Training Recipe: Gemma2 2B
+
+# Import base configurations
+includes:
+  - ../configs/models/gemma2_2b.yaml
+  - ../configs/datasets/anthropic_hh.yaml
+  - ../configs/rewards/multi_objective.yaml
+
+# Training configuration
+training:
+  # Algorithm
+  algorithm: "ppo"
+  
+  # Training hyperparameters
+  num_epochs: 4
+  steps_per_epoch: 1200
+  learning_rate: 8e-6
+  warmup_steps: 150
+  
+  # PPO specific
+  ppo:
+    num_ppo_epochs: 4
+    mini_batch_size: 1
+    gradient_accumulation_steps: 8
+    ppo_clip_range: 0.2
+    value_clip_range: 0.2
+    kl_penalty: "kl"
+    target_kl: 0.08
+    gamma: 0.99
+    lam: 0.95
+    vf_coef: 0.1
+    entropy_coef: 0.005
+  
+  # Optimization
+  optimizer:
+    type: "adamw"
+    betas: [0.9, 0.999]
+    eps: 1e-8
+    weight_decay: 0.01
+  
+  # Learning rate scheduler
+  scheduler:
+    type: "cosine_with_restarts"
+    num_cycles: 2
+    warmup_ratio: 0.1
+  
+  # Generation during training
+  generation:
+    max_new_tokens: 384
+    temperature: 0.9
+    top_p: 0.95
+    do_sample: true
+  
+  # Logging
+  logging:
+    log_interval: 10
+    eval_interval: 100
+    save_interval: 500
+    log_dir: "logs/gemma2_2b_multi_reward"
+    
+  # Evaluation
+  evaluation:
+    num_samples: 200
+    metrics: ["reward", "reward_helpfulness", "reward_harmlessness", "reward_accuracy", "kl", "length", "perplexity"]
+    
+  # Checkpointing
+  checkpointing:
+    save_dir: "checkpoints/gemma2_2b_multi_reward"
+    save_total_limit: 5
+    save_best: true
+    metric_for_best_model: "reward"
+    greater_is_better: true
+
+# Hardware configuration
+hardware:
+  device: "cuda"
+  mixed_precision: "bf16"
+  gradient_checkpointing: true
+  
+  # Multi-GPU
+  distributed:
+    enabled: true
+    backend: "nccl"
+    find_unused_parameters: false
+    world_size: 2
+  
+  # Memory optimization
+  memory:
+    max_memory_per_gpu: null
+    cpu_offload: false
+
+# Experiment tracking
+tracking:
+  enabled: true
+  backend: "wandb"
+  project_name: "rlhf-training"
+  run_name: "gemma2_2b_multi_reward"
+  tags: ["gemma2", "2b", "multi_reward", "ppo"]
+  
+  # Log additional artifacts
+  log_model: true
+  log_gradients: true
+  log_code: true
+
+# Misc
+seed: 42

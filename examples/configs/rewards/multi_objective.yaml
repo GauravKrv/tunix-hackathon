@@ -1,0 +1,71 @@
+# Multi-Objective Reward Configuration
+
+reward:
+  type: "multi_objective"
+  
+  # Multiple reward components
+  components:
+    - name: "helpfulness"
+      weight: 0.5
+      model:
+        name_or_path: "OpenAssistant/reward-model-deberta-v3-large-v2"
+        revision: "main"
+      normalization:
+        enabled: true
+        method: "running_mean_std"
+        clip_min: -10.0
+        clip_max: 10.0
+    
+    - name: "harmlessness"
+      weight: 0.3
+      model:
+        name_or_path: "PKU-Alignment/beaver-7b-v1.0-reward"
+        revision: "main"
+      normalization:
+        enabled: true
+        method: "running_mean_std"
+        clip_min: -10.0
+        clip_max: 10.0
+    
+    - name: "accuracy"
+      weight: 0.2
+      model:
+        name_or_path: "OpenAssistant/reward-model-deberta-v3-base"
+        revision: "main"
+      normalization:
+        enabled: true
+        method: "running_mean_std"
+        clip_min: -10.0
+        clip_max: 10.0
+  
+  # Aggregation strategy
+  aggregation:
+    method: "weighted_sum"  # Options: weighted_sum, weighted_product, pareto, lexicographic
+    normalize_weights: true
+    
+  # Dynamic weighting (optional)
+  dynamic_weights:
+    enabled: false
+    method: "gradient_based"  # Options: gradient_based, performance_based, curriculum
+    update_frequency: 100
+    learning_rate: 0.01
+  
+  # Model settings
+  settings:
+    dtype: "bfloat16"
+    device_map: "auto"
+    max_length: 2048
+    batch_size: 8
+    
+  # Caching
+  cache:
+    enabled: true
+    cache_dir: ".cache/rewards"
+    max_cache_size: 10000
+  
+  # Logging
+  logging:
+    log_distribution: true
+    log_per_component: true
+    log_frequency: 100
+    histogram_bins: 50

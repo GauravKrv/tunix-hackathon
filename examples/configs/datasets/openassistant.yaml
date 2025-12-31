@@ -1,0 +1,48 @@
+# OpenAssistant Dataset Configuration
+
+dataset:
+  name: "openassistant"
+  source: "OpenAssistant/oasst1"
+  
+  # Dataset splits
+  splits:
+    train: "train"
+    validation: "validation"
+  
+  # Preprocessing
+  preprocessing:
+    max_length: 1536
+    prompt_key: "prompt"
+    chosen_key: "response"
+    format: "conversational"  # Handle multi-turn conversations
+    
+  # Conversation handling
+  conversation:
+    max_turns: 3
+    include_system_prompt: true
+    system_prompt: "You are a helpful, respectful and honest assistant."
+  
+  # Sampling strategy
+  sampling:
+    strategy: "uniform"
+    filter_language: ["en"]
+    min_rank: 0
+  
+  # Data loading
+  batch_size: 4
+  num_workers: 4
+  shuffle: true
+  
+  # Filtering
+  filters:
+    min_length: 10
+    max_length: 1536
+    remove_duplicates: true
+    quality_threshold: 0.5
+    filter_toxic: true
+    filter_pii: true
+  
+  # Augmentation
+  augmentation:
+    enabled: false
+    paraphrase: false

@@ -1,0 +1,41 @@
+# Anthropic Helpful & Harmless Dataset Configuration
+
+dataset:
+  name: "anthropic_hh"
+  source: "Anthropic/hh-rlhf"
+  
+  # Dataset splits
+  splits:
+    train: "train"
+    validation: "test"
+  
+  # Preprocessing
+  preprocessing:
+    max_length: 2048
+    prompt_key: "prompt"
+    chosen_key: "chosen"
+    rejected_key: "rejected"
+    
+  # Sampling strategy
+  sampling:
+    strategy: "weighted"  # Options: uniform, weighted, importance
+    oversample_helpful: false
+    oversample_harmless: false
+  
+  # Data loading
+  batch_size: 4
+  num_workers: 4
+  shuffle: true
+  
+  # Filtering
+  filters:
+    min_length: 10
+    max_length: 2048
+    remove_duplicates: true
+    quality_threshold: 0.0
+  
+  # Augmentation
+  augmentation:
+    enabled: false
+    paraphrase: false
+    backtranslation: false
