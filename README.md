@@ -463,11 +463,11 @@ Please see `CONTRIBUTING.md` for guidelines.
 If you use or build upon this work, please cite:
 
 ```bibtex
-@misc{rl_reasoning_2024,
+@misc{rl_reasoning_2025,
   title={RL-Reasoning: Teaching Language Models to Show Their Work},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/your-org/rl-reasoning},
+  author={Gaurav Kumar},
+  year={2025},
+  url={https://github.com/gauravkrv/tunix-hackathon},
   note={Experimental RL approach to reasoning externalization with heuristic rewards}
 }
 ```
@@ -476,7 +476,7 @@ If you use or build upon this work, please cite:
 
 ## License
 
-[Specify License]
+MIT License
 
 ---
 
@@ -491,8 +491,8 @@ If you use or build upon this work, please cite:
 
 ## Contact and Support
 
-- Issues: [GitHub Issues](https://github.com/your-org/rl-reasoning/issues)
+- Issues: [GitHub Issues](https://github.com/gauravkrv/tunix-hackathon/issues)
 - Documentation: See `docs/` directory
-- Email: your-email@example.com
+- Email: gauravkrvbzi@gmail.com
 
 **Remember:** This is experimental research exploring RL-based reasoning encouragement. Use critically and verify outputs, especially for high-stakes applications.
